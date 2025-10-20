@@ -1,0 +1,10 @@
+# Ignore the binary output
+backend/main
+# Ignore the node_modules directory
+frontend/node_modules
+# Ignore the build output directory
+frontend/build
+# Ignore the .env file
+/.env
+# Ignore the .DS_Store file (macOS)
+/.DS_Store

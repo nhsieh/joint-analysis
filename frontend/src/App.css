@@ -1,0 +1,179 @@
+.App {
+  text-align: center;
+}
+
+.App-header {
+  background-color: #282c34;
+  padding: 20px;
+  color: white;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+section {
+  margin-bottom: 30px;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+h2 {
+  margin-top: 0;
+  color: #333;
+}
+
+/* Upload Section */
+.upload-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.upload-controls input[type="file"] {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.upload-controls button {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.upload-controls button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.upload-controls button:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+/* Add Person Section */
+.add-person-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.add-person-controls input {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  flex: 1;
+  max-width: 300px;
+}
+
+.add-person-controls button {
+  padding: 10px 20px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.add-person-controls button:hover {
+  background-color: #218838;
+}
+
+/* Totals Section */
+.totals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.total-card {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+.total-card h3 {
+  margin: 0 0 10px 0;
+  color: #333;
+}
+
+.total-amount {
+  font-size: 24px;
+  font-weight: bold;
+  color: #007bff;
+  margin: 0;
+}
+
+/* Transactions Section */
+.transactions-table {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: white;
+}
+
+th, td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+th {
+  background-color: #f8f9fa;
+  font-weight: bold;
+  color: #333;
+}
+
+tr:hover {
+  background-color: #f5f5f5;
+}
+
+select {
+  padding: 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: white;
+  cursor: pointer;
+}
+
+select:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
+
+  .upload-controls,
+  .add-person-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .totals-grid {
+    grid-template-columns: 1fr;
+  }
+
+  table {
+    font-size: 14px;
+  }
+
+  th, td {
+    padding: 8px;
+  }
+}

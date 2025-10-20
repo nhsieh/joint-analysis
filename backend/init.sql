@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS transactions (
+    id SERIAL PRIMARY KEY,
+    description VARCHAR(255) NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    assigned_to VARCHAR(100),
+    date_uploaded TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    file_name VARCHAR(255)
+);
+
+CREATE TABLE IF NOT EXISTS people (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
