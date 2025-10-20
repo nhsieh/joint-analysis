@@ -1,5 +1,6 @@
 # Ignore the binary output
 backend/main
+backend/jointanalysis
 # Ignore the node_modules directory
 frontend/node_modules
 # Ignore the build output directory

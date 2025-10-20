@@ -26,7 +26,7 @@ import { UploadProps, RcFile } from 'antd/es/upload';
 import { ColumnsType } from 'antd/es/table';
 
 interface Transaction {
-  id: number;
+  id: string;
   description: string;
   amount: number;
   assigned_to: string;
@@ -40,7 +40,7 @@ interface Person {
 }
 
 interface PersonTotal {
-  name: string;
+  person: string;
   total: number;
 }
 
@@ -66,10 +66,13 @@ function App() {
 
   const fetchTransactions = async () => {
     try {
+      setLoading(true);
       const response = await axios.get(`${API_URL}/api/transactions`);
       setTransactions(response.data || []);
     } catch (error) {
       console.error('Error fetching transactions:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -114,7 +117,7 @@ function App() {
     return false; // Prevent default upload behavior
   };
 
-  const assignTransaction = async (transactionId: number, personName: string) => {
+  const assignTransaction = async (transactionId: string, personName: string) => {
     try {
       await axios.put(`${API_URL}/api/transactions/${transactionId}/assign`, {
         assigned_to: personName,
@@ -311,10 +314,10 @@ function App() {
             ) : (
               <Row gutter={[16, 16]}>
                 {totals.map((total) => (
-                  <Col xs={12} sm={8} md={6} lg={4} key={total.name}>
+                  <Col xs={12} sm={8} md={6} lg={4} key={total.person}>
                     <Card size="small" style={{ textAlign: 'center' }} hoverable>
                       <Statistic
-                        title={total.name}
+                        title={total.person}
                         value={total.total}
                         precision={2}
                         prefix="$"

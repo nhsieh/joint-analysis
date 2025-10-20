@@ -63,21 +63,21 @@ WHERE id = $1;
 -- Transactions queries
 -- name: GetTransactions :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category, category_id,
+       transaction_date, posted_date, card_number, category_id,
        created_at, updated_at
 FROM transactions
 ORDER BY date_uploaded DESC;
 
 -- name: GetTransactionByID :one
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category, category_id,
+       transaction_date, posted_date, card_number, category_id,
        created_at, updated_at
 FROM transactions
 WHERE id = $1;
 
 -- name: GetTransactionsByAssignedTo :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category, category_id,
+       transaction_date, posted_date, card_number, category_id,
        created_at, updated_at
 FROM transactions
 WHERE assigned_to = $1
@@ -85,17 +85,17 @@ ORDER BY date_uploaded DESC;
 
 -- name: GetTransactionsByFileName :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category, category_id,
+       transaction_date, posted_date, card_number, category_id,
        created_at, updated_at
 FROM transactions
 WHERE file_name = $1
 ORDER BY date_uploaded DESC;
 
 -- name: CreateTransaction :one
-INSERT INTO transactions (description, amount, file_name, transaction_date, posted_date, card_number, category)
+INSERT INTO transactions (description, amount, file_name, transaction_date, posted_date, card_number, category_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category, category_id,
+          transaction_date, posted_date, card_number, category_id,
           created_at, updated_at;
 
 -- name: UpdateTransactionAssignment :one
@@ -103,7 +103,7 @@ UPDATE transactions
 SET assigned_to = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category, category_id,
+          transaction_date, posted_date, card_number, category_id,
           created_at, updated_at;
 
 -- name: UpdateTransactionCategory :one
@@ -111,7 +111,7 @@ UPDATE transactions
 SET category_id = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category, category_id,
+          transaction_date, posted_date, card_number, category_id,
           created_at, updated_at;
 
 -- name: DeleteTransaction :exec
@@ -119,14 +119,14 @@ DELETE FROM transactions
 WHERE id = $1;
 
 -- name: GetTotalsByAssignedTo :many
-SELECT assigned_to, SUM(amount) as total
+SELECT assigned_to, SUM(amount)::numeric as total
 FROM transactions
 WHERE assigned_to IS NOT NULL AND assigned_to != ''
 GROUP BY assigned_to
 ORDER BY assigned_to;
 
 -- name: GetTotalsByCategory :many
-SELECT c.name as category_name, SUM(t.amount) as total
+SELECT c.name as category_name, SUM(t.amount)::numeric as total
 FROM transactions t
 JOIN categories c ON t.category_id = c.id
 WHERE t.category_id IS NOT NULL
