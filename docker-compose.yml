@@ -29,7 +29,9 @@ services:
       - DB_NAME=jointanalysis
       - PORT=8080
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    restart: on-failure
 
   postgres:
     image: postgres:15-alpine
@@ -41,7 +43,11 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d jointanalysis"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:

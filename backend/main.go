@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -16,17 +17,36 @@ import (
 )
 
 type Transaction struct {
-	ID           int       `json:"id"`
-	Description  string    `json:"description"`
-	Amount       float64   `json:"amount"`
-	AssignedTo   string    `json:"assigned_to"`
-	DateUploaded time.Time `json:"date_uploaded"`
-	FileName     string    `json:"file_name"`
+	ID              string    `json:"id"`
+	Description     string    `json:"description"`
+	Amount          float64   `json:"amount"`
+	AssignedTo      string    `json:"assigned_to"`
+	DateUploaded    time.Time `json:"date_uploaded"`
+	FileName        string    `json:"file_name"`
+	TransactionDate *string   `json:"transaction_date"`
+	PostedDate      *string   `json:"posted_date"`
+	CardNumber      *string   `json:"card_number"`
+	Category        *string   `json:"category"`
+	CategoryID      *string   `json:"category_id"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type Person struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Email     *string   `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Category struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description *string   `json:"description"`
+	Color       *string   `json:"color"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type PersonTotal struct {
@@ -64,15 +84,56 @@ func main() {
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		dbHost, dbPort, dbUser, dbPassword, dbName)
 
-	db, err = sql.Open("postgres", connStr)
+	// Connect to database with retry logic
+	maxRetries := 30
+	retryInterval := time.Second * 2
+
+	for i := 0; i < maxRetries; i++ {
+		db, err = sql.Open("postgres", connStr)
+		if err != nil {
+			log.Printf("Attempt %d: Error opening database: %v", i+1, err)
+			time.Sleep(retryInterval)
+			continue
+		}
+
+		// Test database connection
+		if err = db.Ping(); err != nil {
+			log.Printf("Attempt %d: Error connecting to database: %v", i+1, err)
+			db.Close()
+			time.Sleep(retryInterval)
+			continue
+		}
+
+		log.Println("Successfully connected to database")
+		break
+	}
+
 	if err != nil {
-		log.Fatal("Error opening database: ", err)
+		log.Fatal("Failed to connect to database after retries: ", err)
 	}
 	defer db.Close()
 
-	// Test database connection
-	if err = db.Ping(); err != nil {
-		log.Fatal("Error connecting to database: ", err)
+	// Run database migrations
+	migrationsPath := filepath.Join(".", "db", "migrations")
+
+	// Check if migrations directory exists
+	if _, err := os.Stat(migrationsPath); os.IsNotExist(err) {
+		log.Printf("Migrations directory not found at %s, skipping migrations", migrationsPath)
+	} else {
+		log.Println("Running database migrations...")
+		if err := runMigrations(db, migrationsPath); err != nil {
+			log.Fatal("Error running migrations: ", err)
+		}
+
+		// Display current migration version
+		if version, dirty, err := getMigrationVersion(db, migrationsPath); err == nil {
+			if dirty {
+				log.Printf("Current migration version: %d (DIRTY - migration failed)", version)
+			} else {
+				log.Printf("Current migration version: %d", version)
+			}
+		}
+		log.Println("Database migrations completed successfully")
 	}
 
 	r := gin.Default()
@@ -92,6 +153,8 @@ func main() {
 	r.PUT("/api/transactions/:id/assign", assignTransaction)
 	r.GET("/api/people", getPeople)
 	r.POST("/api/people", createPerson)
+	r.GET("/api/categories", getCategories)
+	r.POST("/api/categories", createCategory)
 	r.GET("/api/totals", getTotals)
 
 	port := os.Getenv("PORT")
@@ -186,7 +249,13 @@ func uploadCSV(c *gin.Context) {
 }
 
 func getTransactions(c *gin.Context) {
-	rows, err := db.Query("SELECT id, description, amount, COALESCE(assigned_to, ''), date_uploaded, file_name FROM transactions ORDER BY date_uploaded DESC")
+	rows, err := db.Query(`
+		SELECT id, description, amount, COALESCE(assigned_to, ''), date_uploaded,
+			   COALESCE(file_name, ''), transaction_date, posted_date, card_number,
+			   category, category_id, created_at, updated_at
+		FROM transactions
+		ORDER BY date_uploaded DESC
+	`)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching transactions"})
 		return
@@ -196,11 +265,34 @@ func getTransactions(c *gin.Context) {
 	var transactions []Transaction
 	for rows.Next() {
 		var t Transaction
-		err := rows.Scan(&t.ID, &t.Description, &t.Amount, &t.AssignedTo, &t.DateUploaded, &t.FileName)
+		var transactionDate, postedDate, cardNumber, category sql.NullString
+		var categoryID sql.NullString
+
+		err := rows.Scan(&t.ID, &t.Description, &t.Amount, &t.AssignedTo, &t.DateUploaded,
+			&t.FileName, &transactionDate, &postedDate, &cardNumber, &category, &categoryID,
+			&t.CreatedAt, &t.UpdatedAt)
 		if err != nil {
 			log.Printf("Error scanning transaction: %v", err)
 			continue
 		}
+
+		// Handle nullable fields
+		if transactionDate.Valid {
+			t.TransactionDate = &transactionDate.String
+		}
+		if postedDate.Valid {
+			t.PostedDate = &postedDate.String
+		}
+		if cardNumber.Valid {
+			t.CardNumber = &cardNumber.String
+		}
+		if category.Valid {
+			t.Category = &category.String
+		}
+		if categoryID.Valid {
+			t.CategoryID = &categoryID.String
+		}
+
 		transactions = append(transactions, t)
 	}
 
@@ -228,7 +320,7 @@ func assignTransaction(c *gin.Context) {
 }
 
 func getPeople(c *gin.Context) {
-	rows, err := db.Query("SELECT id, name FROM people ORDER BY name")
+	rows, err := db.Query("SELECT id, name, email, created_at, updated_at FROM people ORDER BY name")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching people"})
 		return
@@ -238,11 +330,18 @@ func getPeople(c *gin.Context) {
 	var people []Person
 	for rows.Next() {
 		var p Person
-		err := rows.Scan(&p.ID, &p.Name)
+		var email sql.NullString
+
+		err := rows.Scan(&p.ID, &p.Name, &email, &p.CreatedAt, &p.UpdatedAt)
 		if err != nil {
 			log.Printf("Error scanning person: %v", err)
 			continue
 		}
+
+		if email.Valid {
+			p.Email = &email.String
+		}
+
 		people = append(people, p)
 	}
 
@@ -256,7 +355,11 @@ func createPerson(c *gin.Context) {
 		return
 	}
 
-	err := db.QueryRow("INSERT INTO people (name) VALUES ($1) RETURNING id", person.Name).Scan(&person.ID)
+	err := db.QueryRow(
+		"INSERT INTO people (name, email) VALUES ($1, $2) RETURNING id, created_at, updated_at",
+		person.Name, person.Email,
+	).Scan(&person.ID, &person.CreatedAt, &person.UpdatedAt)
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating person"})
 		return
@@ -291,4 +394,55 @@ func getTotals(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, totals)
+}
+
+func getCategories(c *gin.Context) {
+	rows, err := db.Query("SELECT id, name, COALESCE(description, ''), COALESCE(color, ''), created_at, updated_at FROM categories ORDER BY name")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching categories"})
+		return
+	}
+	defer rows.Close()
+
+	var categories []Category
+	for rows.Next() {
+		var cat Category
+		var description, color string
+		err := rows.Scan(&cat.ID, &cat.Name, &description, &color, &cat.CreatedAt, &cat.UpdatedAt)
+		if err != nil {
+			log.Printf("Error scanning category: %v", err)
+			continue
+		}
+
+		if description != "" {
+			cat.Description = &description
+		}
+		if color != "" {
+			cat.Color = &color
+		}
+
+		categories = append(categories, cat)
+	}
+
+	c.JSON(http.StatusOK, categories)
+}
+
+func createCategory(c *gin.Context) {
+	var category Category
+	if err := c.ShouldBindJSON(&category); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	err := db.QueryRow(
+		"INSERT INTO categories (name, description, color) VALUES ($1, $2, $3) RETURNING id, created_at, updated_at",
+		category.Name, category.Description, category.Color,
+	).Scan(&category.ID, &category.CreatedAt, &category.UpdatedAt)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating category"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, category)
 }
