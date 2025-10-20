@@ -32,11 +32,22 @@ interface Transaction {
   assigned_to: string;
   date_uploaded: string;
   file_name: string;
+  transaction_date: string;
+  posted_date: string;
+  card_number: string;
+  category_id: string;
 }
 
 interface Person {
   id: number;
   name: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
 }
 
 interface PersonTotal {
@@ -53,6 +64,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081';
 function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [totals, setTotals] = useState<PersonTotal[]>([]);
   const [newPersonName, setNewPersonName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -61,6 +73,7 @@ function App() {
   useEffect(() => {
     fetchTransactions();
     fetchPeople();
+    fetchCategories();
     fetchTotals();
   }, []);
 
@@ -82,6 +95,15 @@ function App() {
       setPeople(response.data || []);
     } catch (error) {
       console.error('Error fetching people:', error);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/categories`);
+      setCategories(response.data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
     }
   };
 
@@ -158,21 +180,79 @@ function App() {
 
   const columns: ColumnsType<Transaction> = [
     {
+      title: 'Transaction Date',
+      dataIndex: 'transaction_date',
+      key: 'transaction_date',
+      render: (date: string) => {
+        if (!date) return '-';
+        return new Date(date).toLocaleDateString();
+      },
+      sorter: (a: Transaction, b: Transaction) =>
+        new Date(a.transaction_date || 0).getTime() - new Date(b.transaction_date || 0).getTime(),
+      width: '12%',
+    },
+    {
+      title: 'Posted Date',
+      dataIndex: 'posted_date',
+      key: 'posted_date',
+      render: (date: string) => {
+        if (!date) return '-';
+        return new Date(date).toLocaleDateString();
+      },
+      sorter: (a: Transaction, b: Transaction) =>
+        new Date(a.posted_date || 0).getTime() - new Date(b.posted_date || 0).getTime(),
+      width: '12%',
+    },
+    {
+      title: 'Card No.',
+      dataIndex: 'card_number',
+      key: 'card_number',
+      render: (cardNumber: string) => cardNumber || '-',
+      width: '10%',
+    },
+    {
       title: 'Description',
       dataIndex: 'description',
       key: 'description',
       ellipsis: true,
-      width: '40%',
+      width: '25%',
     },
     {
-      title: 'Amount',
+      title: 'Category',
+      dataIndex: 'category_id',
+      key: 'category_id',
+      render: (categoryId: string) => {
+        if (!categoryId) {
+          return <Text type="secondary" italic>Uncategorized</Text>;
+        }
+        const category = categories.find(cat => cat.id === categoryId);
+        return category ? (
+          <Text style={{ color: category.color }}>
+            {category.name}
+          </Text>
+        ) : (
+          <Text type="secondary">Unknown Category</Text>
+        );
+      },
+      width: '12%',
+    },
+    {
+      title: 'Amount (Debit/Credit)',
       dataIndex: 'amount',
       key: 'amount',
-      render: (amount: number) => (
-        <Text strong style={{ color: amount >= 0 ? '#52c41a' : '#ff4d4f' }}>
-          ${amount.toFixed(2)}
-        </Text>
-      ),
+      render: (amount: number) => {
+        const isDebit = amount > 0;
+        return (
+          <div>
+            <Text strong style={{ color: isDebit ? '#ff4d4f' : '#52c41a' }}>
+              ${Math.abs(amount).toFixed(2)}
+            </Text>
+            <div style={{ fontSize: '11px', color: '#666' }}>
+              {isDebit ? 'Debit' : 'Credit'}
+            </div>
+          </div>
+        );
+      },
       sorter: (a: Transaction, b: Transaction) => a.amount - b.amount,
       width: '15%',
     },
@@ -186,15 +266,15 @@ function App() {
         ) : (
           <Text type="secondary" italic>Unassigned</Text>
         ),
-      width: '20%',
+      width: '12%',
     },
     {
       title: 'Action',
       key: 'action',
       render: (_: any, record: Transaction) => (
         <Select
-          style={{ width: 150 }}
-          placeholder="Select Person"
+          style={{ width: 120 }}
+          placeholder="Assign"
           value={record.assigned_to || undefined}
           onChange={(value: string) => assignTransaction(record.id, value)}
           allowClear
@@ -206,7 +286,7 @@ function App() {
           ))}
         </Select>
       ),
-      width: '25%',
+      width: '12%',
     },
   ];
 
@@ -356,7 +436,7 @@ function App() {
                     `${range[0]}-${range[1]} of ${total} transactions`,
                   pageSizeOptions: ['10', '20', '50', '100'],
                 }}
-                scroll={{ x: 800 }}
+                scroll={{ x: 1200 }}
                 locale={{
                   emptyText: (
                     <div style={{ padding: '40px 0' }}>

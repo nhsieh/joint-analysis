@@ -315,12 +315,12 @@ func uploadCSV(c *gin.Context) {
 
 		// Add optional fields
 		if transactionDate != "" {
-			if parsedDate, err := time.Parse("01/02/2006", transactionDate); err == nil {
+			if parsedDate, err := time.Parse("2006-01-02", transactionDate); err == nil {
 				params.TransactionDate = pgtype.Date{Time: parsedDate, Valid: true}
 			}
 		}
 		if postedDate != "" {
-			if parsedDate, err := time.Parse("01/02/2006", postedDate); err == nil {
+			if parsedDate, err := time.Parse("2006-01-02", postedDate); err == nil {
 				params.PostedDate = pgtype.Date{Time: parsedDate, Valid: true}
 			}
 		}
