@@ -15,6 +15,7 @@ import {
   Statistic,
   message,
   Spin,
+  Checkbox,
 } from 'antd';
 import {
   UploadOutlined,
@@ -140,10 +141,10 @@ function App() {
     return false; // Prevent default upload behavior
   };
 
-  const assignTransaction = async (transactionId: string, assignedPeople: string[]) => {
+  const assignTransaction = async (transactionId: string, assignedPeopleUUIDs: string[]) => {
     try {
       await axios.put(`${API_URL}/api/transactions/${transactionId}/assign`, {
-        assigned_to: assignedPeople,
+        assigned_to: assignedPeopleUUIDs,
       });
       message.success('Transaction assigned successfully!');
       fetchTransactions();
@@ -193,42 +194,42 @@ function App() {
 
   const columns: ColumnsType<Transaction> = [
     {
-      title: 'Transaction Date',
+      title: 'Date',
       dataIndex: 'transaction_date',
       key: 'transaction_date',
-      render: (date: string) => {
+      render: (date: string, record: Transaction) => {
         if (!date) return '-';
-        return new Date(date).toLocaleDateString();
+        const transactionDate = new Date(date).toLocaleDateString();
+        const postedDate = record.posted_date ? new Date(record.posted_date).toLocaleDateString() : null;
+
+        return (
+          <div>
+            <div>{transactionDate}</div>
+            {postedDate && (
+              <div style={{ fontSize: '11px', color: '#666', marginTop: 2 }}>
+                Posted: {postedDate}
+              </div>
+            )}
+          </div>
+        );
       },
       sorter: (a: Transaction, b: Transaction) =>
         new Date(a.transaction_date || 0).getTime() - new Date(b.transaction_date || 0).getTime(),
-      width: '12%',
+      width: 100,
     },
     {
-      title: 'Posted Date',
-      dataIndex: 'posted_date',
-      key: 'posted_date',
-      render: (date: string) => {
-        if (!date) return '-';
-        return new Date(date).toLocaleDateString();
-      },
-      sorter: (a: Transaction, b: Transaction) =>
-        new Date(a.posted_date || 0).getTime() - new Date(b.posted_date || 0).getTime(),
-      width: '12%',
-    },
-    {
-      title: 'Card No.',
+      title: 'Card',
       dataIndex: 'card_number',
       key: 'card_number',
       render: (cardNumber: string) => cardNumber || '-',
-      width: '10%',
+      width: 60,
     },
     {
       title: 'Description',
       dataIndex: 'description',
       key: 'description',
       ellipsis: true,
-      width: '25%',
+      width: 250,
     },
     {
       title: 'Category',
@@ -247,10 +248,10 @@ function App() {
           <Text type="secondary">Unknown Category</Text>
         );
       },
-      width: '12%',
+      width: 100,
     },
     {
-      title: 'Amount (Debit/Credit)',
+      title: 'Amount',
       dataIndex: 'amount',
       key: 'amount',
       render: (amount: number) => {
@@ -267,47 +268,54 @@ function App() {
         );
       },
       sorter: (a: Transaction, b: Transaction) => a.amount - b.amount,
-      width: '15%',
+      width: 100,
     },
     {
-      title: 'Assigned To',
-      dataIndex: 'assigned_to',
-      key: 'assigned_to',
-      render: (assignedTo: string[]) =>
-        assignedTo && assignedTo.length > 0 ? (
-          <div>
-            {assignedTo.map((person, index) => (
-              <span key={index}>
-                {person}
-                {index < assignedTo.length - 1 ? ', ' : ''}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <Text type="secondary" italic>Unassigned</Text>
-        ),
-      width: '12%',
-    },
-    {
-      title: 'Action',
+      title: 'Assign People',
       key: 'action',
       render: (_: any, record: Transaction) => (
-        <Select
-          mode="multiple"
-          style={{ width: 200 }}
-          placeholder="Assign people..."
-          value={record.assigned_to || []}
-          onChange={(value: string[]) => assignTransaction(record.id, value)}
-          allowClear
-        >
-          {people.map((person) => (
-            <Option key={person.id} value={person.name}>
-              {person.name}
-            </Option>
-          ))}
-        </Select>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          {people.map((person) => {
+            // Check if person is assigned by looking for their name in assigned_to array
+            const isAssigned = (record.assigned_to || []).includes(person.name);
+
+            return (
+              <Checkbox
+                key={person.id}
+                checked={isAssigned}
+                onChange={(e) => {
+                  // Get current assigned person UUIDs
+                  const currentAssignedNames = record.assigned_to || [];
+                  let newAssignedUUIDs: string[];
+
+                  if (e.target.checked) {
+                    // Add this person's UUID to the list
+                    const currentUUIDs = currentAssignedNames.map(name => {
+                      const p = people.find(p => p.name === name);
+                      return p ? p.id : '';
+                    }).filter(id => id !== '');
+
+                    newAssignedUUIDs = [...currentUUIDs, person.id];
+                  } else {
+                    // Remove this person's UUID from the list
+                    const currentUUIDs = currentAssignedNames.map(name => {
+                      const p = people.find(p => p.name === name);
+                      return p ? p.id : '';
+                    }).filter(id => id !== '');
+
+                    newAssignedUUIDs = currentUUIDs.filter(uuid => uuid !== person.id);
+                  }
+
+                  assignTransaction(record.id, newAssignedUUIDs);
+                }}
+              >
+                <span style={{ fontSize: '12px' }}>{person.name}</span>
+              </Checkbox>
+            );
+          })}
+        </div>
       ),
-      width: '15%',
+      width: 200,
     },
   ];
 
@@ -438,12 +446,12 @@ function App() {
                 pagination={{
                   pageSize: 10,
                   showSizeChanger: true,
-                  showQuickJumper: true,
+                  showQuickJumper: false,
                   showTotal: (total: number, range: [number, number]) =>
                     `${range[0]}-${range[1]} of ${total} transactions`,
                   pageSizeOptions: ['10', '20', '50', '100'],
                 }}
-                scroll={{ x: 1200 }}
+                scroll={{ x: 910 }}
                 locale={{
                   emptyText: (
                     <div style={{ padding: '40px 0' }}>
