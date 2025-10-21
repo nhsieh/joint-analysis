@@ -30,7 +30,7 @@ interface Transaction {
   id: string;
   description: string;
   amount: number;
-  assigned_to: string;
+  assigned_to: string[];
   date_uploaded: string;
   file_name: string;
   transaction_date: string;
@@ -140,10 +140,10 @@ function App() {
     return false; // Prevent default upload behavior
   };
 
-  const assignTransaction = async (transactionId: string, personName: string) => {
+  const assignTransaction = async (transactionId: string, assignedPeople: string[]) => {
     try {
       await axios.put(`${API_URL}/api/transactions/${transactionId}/assign`, {
-        assigned_to: personName,
+        assigned_to: assignedPeople,
       });
       message.success('Transaction assigned successfully!');
       fetchTransactions();
@@ -273,9 +273,16 @@ function App() {
       title: 'Assigned To',
       dataIndex: 'assigned_to',
       key: 'assigned_to',
-      render: (assignedTo: string) =>
-        assignedTo ? (
-          <Text>{assignedTo}</Text>
+      render: (assignedTo: string[]) =>
+        assignedTo && assignedTo.length > 0 ? (
+          <div>
+            {assignedTo.map((person, index) => (
+              <span key={index}>
+                {person}
+                {index < assignedTo.length - 1 ? ', ' : ''}
+              </span>
+            ))}
+          </div>
         ) : (
           <Text type="secondary" italic>Unassigned</Text>
         ),
@@ -286,10 +293,11 @@ function App() {
       key: 'action',
       render: (_: any, record: Transaction) => (
         <Select
-          style={{ width: 120 }}
-          placeholder="Assign"
-          value={record.assigned_to || undefined}
-          onChange={(value: string) => assignTransaction(record.id, value)}
+          mode="multiple"
+          style={{ width: 200 }}
+          placeholder="Assign people..."
+          value={record.assigned_to || []}
+          onChange={(value: string[]) => assignTransaction(record.id, value)}
           allowClear
         >
           {people.map((person) => (
@@ -299,7 +307,7 @@ function App() {
           ))}
         </Select>
       ),
-      width: '12%',
+      width: '15%',
     },
   ];
 

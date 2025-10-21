@@ -1,6 +1,6 @@
 # Joint Analysis - Expense Tracker Makefile
 
-.PHONY: help build up down restart rebuild-backend restart-backend logs logs-backend clean
+.PHONY: help build up down restart rebuild-backend restart-backend logs logs-backend clean generate-db
 
 # Default target
 help:
@@ -13,6 +13,7 @@ help:
 	@echo "  restart-backend  - Restart only the backend service"
 	@echo "  logs             - Show logs for all services"
 	@echo "  logs-backend     - Show logs for backend service only"
+	@echo "  generate-db      - Generate database code using sqlc"
 	@echo "  clean            - Remove all containers and volumes"
 
 # Build all containers
@@ -68,3 +69,8 @@ dev-setup: build up
 
 # Quick backend development cycle
 dev-backend: rebuild-backend restart-backend logs-backend
+
+# Generate database code using sqlc
+generate-db:
+	pushd backend/db && sqlc generate && popd
+	@echo "Database code generated successfully!"

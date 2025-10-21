@@ -29,7 +29,7 @@ type Transaction struct {
 	ID              pgtype.UUID      `json:"id"`
 	Description     string           `json:"description"`
 	Amount          pgtype.Numeric   `json:"amount"`
-	AssignedTo      pgtype.Text      `json:"assigned_to"`
+	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
 	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
 	FileName        pgtype.Text      `json:"file_name"`
 	TransactionDate pgtype.Date      `json:"transaction_date"`

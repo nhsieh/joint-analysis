@@ -24,7 +24,7 @@ type Transaction struct {
 	ID              string    `json:"id"`
 	Description     string    `json:"description"`
 	Amount          float64   `json:"amount"`
-	AssignedTo      string    `json:"assigned_to"`
+	AssignedTo      []string  `json:"assigned_to"`
 	DateUploaded    time.Time `json:"date_uploaded"`
 	FileName        string    `json:"file_name"`
 	TransactionDate *string   `json:"transaction_date"`
@@ -345,43 +345,138 @@ func uploadCSV(c *gin.Context) {
 }
 
 // convertTransaction converts from generated.Transaction to API Transaction
+// Helper function to convert UUID array to person names
+func convertUUIDArrayToNames(uuidArray []pgtype.UUID) ([]string, error) {
+	if len(uuidArray) == 0 {
+		return []string{}, nil
+	}
+
+	var names []string
+	for _, uuidPg := range uuidArray {
+		if uuidPg.Valid {
+			person, err := queries.GetPersonByID(context.Background(), uuidPg)
+			if err != nil {
+				log.Printf("Error getting person by ID %v: %v", uuidPg, err)
+				continue // Skip invalid UUIDs instead of failing completely
+			}
+			names = append(names, person.Name)
+		}
+	}
+	return names, nil
+}
+
+// Helper function to convert person names to UUID array
+func convertNamesToUUIDArray(names []string) ([]pgtype.UUID, error) {
+	if len(names) == 0 {
+		return []pgtype.UUID{}, nil
+	}
+
+	var uuids []pgtype.UUID
+	for _, name := range names {
+		person, err := queries.GetPersonByName(context.Background(), name)
+		if err != nil {
+			log.Printf("Error getting person by name %s: %v", name, err)
+			continue // Skip invalid names instead of failing completely
+		}
+		uuids = append(uuids, person.ID)
+	}
+	return uuids, nil
+}
+
+func convertUUIDStringsToArray(uuidStrings []string) ([]pgtype.UUID, error) {
+	if len(uuidStrings) == 0 {
+		return []pgtype.UUID{}, nil
+	}
+
+	var uuids []pgtype.UUID
+	for _, uuidStr := range uuidStrings {
+		parsedUUID, err := uuid.Parse(uuidStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid UUID format: %s", uuidStr)
+		}
+		uuids = append(uuids, pgtype.UUID{Bytes: parsedUUID, Valid: true})
+	}
+	return uuids, nil
+}
+
 func convertTransaction(t generated.Transaction) Transaction {
+	return convertTransactionFromFields(
+		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
+		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
+	)
+}
+
+func convertTransactionFromGetRow(t generated.Transaction) Transaction {
+	return convertTransactionFromFields(
+		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
+		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
+	)
+}
+
+func convertTransactionFromUpdateRow(t generated.Transaction) Transaction {
+	return convertTransactionFromFields(
+		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
+		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
+	)
+}
+
+func convertTransactionFromFields(
+	id pgtype.UUID,
+	description string,
+	amount pgtype.Numeric,
+	assignedTo []pgtype.UUID,
+	dateUploaded pgtype.Timestamp,
+	fileName pgtype.Text,
+	transactionDate pgtype.Date,
+	postedDate pgtype.Date,
+	cardNumber pgtype.Text,
+	categoryID pgtype.UUID,
+	createdAt pgtype.Timestamp,
+	updatedAt pgtype.Timestamp,
+) Transaction {
 	result := Transaction{
-		ID:           uuid.UUID(t.ID.Bytes).String(), // Convert UUID to string
-		Description:  t.Description,
-		AssignedTo:   "",
-		DateUploaded: t.DateUploaded.Time,
+		ID:           uuid.UUID(id.Bytes).String(), // Convert UUID to string
+		Description:  description,
+		AssignedTo:   []string{}, // Initialize as empty array
+		DateUploaded: dateUploaded.Time,
 		FileName:     "",
-		CreatedAt:    t.CreatedAt.Time,
-		UpdatedAt:    t.UpdatedAt.Time,
+		CreatedAt:    createdAt.Time,
+		UpdatedAt:    updatedAt.Time,
 	}
 
 	// Convert numeric amount
-	if t.Amount.Valid {
-		amountFloat, _ := t.Amount.Float64Value()
+	if amount.Valid {
+		amountFloat, _ := amount.Float64Value()
 		result.Amount = amountFloat.Float64
 	}
 
+	// Convert UUID array to person names
+	if len(assignedTo) > 0 {
+		names, err := convertUUIDArrayToNames(assignedTo)
+		if err != nil {
+			log.Printf("Error converting UUIDs to names: %v", err)
+		} else {
+			result.AssignedTo = names
+		}
+	}
+
 	// Handle nullable fields
-	if t.AssignedTo.Valid {
-		result.AssignedTo = t.AssignedTo.String
+	if fileName.Valid {
+		result.FileName = fileName.String
 	}
-	if t.FileName.Valid {
-		result.FileName = t.FileName.String
-	}
-	if t.TransactionDate.Valid {
-		dateStr := t.TransactionDate.Time.Format("2006-01-02")
+	if transactionDate.Valid {
+		dateStr := transactionDate.Time.Format("2006-01-02")
 		result.TransactionDate = &dateStr
 	}
-	if t.PostedDate.Valid {
-		dateStr := t.PostedDate.Time.Format("2006-01-02")
+	if postedDate.Valid {
+		dateStr := postedDate.Time.Format("2006-01-02")
 		result.PostedDate = &dateStr
 	}
-	if t.CardNumber.Valid {
-		result.CardNumber = &t.CardNumber.String
+	if cardNumber.Valid {
+		result.CardNumber = &cardNumber.String
 	}
-	if t.CategoryID.Valid {
-		categoryStr := uuid.UUID(t.CategoryID.Bytes).String()
+	if categoryID.Valid {
+		categoryStr := uuid.UUID(categoryID.Bytes).String()
 		result.CategoryID = &categoryStr
 	}
 
@@ -399,7 +494,7 @@ func getTransactions(c *gin.Context) {
 	// Convert to API transaction format
 	var transactions []Transaction
 	for _, t := range dbTransactions {
-		transactions = append(transactions, convertTransaction(t))
+		transactions = append(transactions, convertTransactionFromGetRow(t))
 	}
 
 	c.JSON(http.StatusOK, transactions)
@@ -408,7 +503,7 @@ func getTransactions(c *gin.Context) {
 func assignTransaction(c *gin.Context) {
 	id := c.Param("id")
 	var request struct {
-		AssignedTo string `json:"assigned_to"`
+		AssignedTo []string `json:"assigned_to"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -423,10 +518,17 @@ func assignTransaction(c *gin.Context) {
 		return
 	}
 
+	// Convert UUID strings to pgtype.UUID array
+	assignedUUIDs, err := convertUUIDStringsToArray(request.AssignedTo)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing person UUIDs"})
+		return
+	}
+
 	// Create parameters for the generated function
 	params := generated.UpdateTransactionAssignmentParams{
 		ID:         pgtype.UUID{Bytes: transactionUUID, Valid: true},
-		AssignedTo: pgtype.Text{String: request.AssignedTo, Valid: request.AssignedTo != ""},
+		AssignedTo: assignedUUIDs,
 	}
 
 	dbTransaction, err := queries.UpdateTransactionAssignment(context.Background(), params)
@@ -437,7 +539,7 @@ func assignTransaction(c *gin.Context) {
 	}
 
 	// Convert and return the updated transaction
-	transaction := convertTransaction(dbTransaction)
+	transaction := convertTransactionFromUpdateRow(dbTransaction)
 	c.JSON(http.StatusOK, transaction)
 }
 
@@ -517,8 +619,27 @@ func deletePerson(c *gin.Context) {
 		return
 	}
 
-	// Delete the person using the generated function
-	err = queries.DeletePerson(context.Background(), pgtype.UUID{Bytes: personUUID, Valid: true})
+	// Create pgtype.UUID for the queries
+	personUUIDpg := pgtype.UUID{Bytes: personUUID, Valid: true}
+
+	// First, get the person to ensure they exist
+	_, err = queries.GetPersonByID(context.Background(), personUUIDpg)
+	if err != nil {
+		log.Printf("Error finding person: %v", err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Person not found"})
+		return
+	}
+
+	// Unassign all transactions that are assigned to this person (by UUID)
+	err = queries.UnassignTransactionsByPerson(context.Background(), personUUIDpg)
+	if err != nil {
+		log.Printf("Error unassigning transactions for person %s: %v", id, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error unassigning transactions"})
+		return
+	}
+
+	// Now delete the person
+	err = queries.DeletePerson(context.Background(), personUUIDpg)
 	if err != nil {
 		log.Printf("Error deleting person: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting person"})
@@ -538,21 +659,19 @@ func getTotals(c *gin.Context) {
 
 	var totals []Total
 	for _, dbTotal := range dbTotals {
-		person := "Unassigned"
-		if dbTotal.AssignedTo.Valid && dbTotal.AssignedTo.String != "" {
-			person = dbTotal.AssignedTo.String
-		}
-
 		// Convert pgtype.Numeric to float64
 		totalValue, _ := dbTotal.Total.Float64Value()
 
 		total := Total{
-			Person: person,
+			Person: dbTotal.AssignedTo, // This is now a string (person name) from the query
 			Total:  totalValue.Float64,
 		}
 		totals = append(totals, total)
-	} // Add unassigned total if there are any unassigned transactions
-	// This needs a separate query since the generated query excludes NULL/empty assigned_to
+	}
+
+	// TODO: Add unassigned total if there are any unassigned transactions
+	// This would need a separate query since the current query excludes transactions with empty assigned_to arrays
+
 	c.JSON(http.StatusOK, totals)
 }
 

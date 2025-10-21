@@ -26,7 +26,7 @@ CREATE TABLE transactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     description VARCHAR(500) NOT NULL,
     amount DECIMAL(12, 2) NOT NULL,
-    assigned_to VARCHAR(100),
+    assigned_to UUID[],
     date_uploaded TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     file_name VARCHAR(255),
     transaction_date DATE,
@@ -40,17 +40,15 @@ CREATE TABLE transactions (
 -- Create indexes for better query performance
 CREATE INDEX idx_people_name ON people(name);
 CREATE INDEX idx_categories_name ON categories(name);
-CREATE INDEX idx_transactions_assigned_to ON transactions(assigned_to);
+CREATE INDEX idx_transactions_assigned_to ON transactions USING GIN(assigned_to);
 CREATE INDEX idx_transactions_date_uploaded ON transactions(date_uploaded);
 CREATE INDEX idx_transactions_transaction_date ON transactions(transaction_date);
 CREATE INDEX idx_transactions_file_name ON transactions(file_name);
 CREATE INDEX idx_transactions_category_id ON transactions(category_id);
 
 -- Add foreign key constraints
-ALTER TABLE transactions
-ADD CONSTRAINT fk_transactions_assigned_to
-FOREIGN KEY (assigned_to) REFERENCES people(name)
-ON UPDATE CASCADE ON DELETE SET NULL;
+-- Note: PostgreSQL doesn't support foreign key constraints on arrays directly
+-- We'll handle referential integrity in the application layer
 
 ALTER TABLE transactions
 ADD CONSTRAINT fk_transactions_category_id

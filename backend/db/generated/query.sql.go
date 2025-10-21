@@ -11,6 +11,40 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addPersonToTransaction = `-- name: AddPersonToTransaction :one
+UPDATE transactions
+SET assigned_to = array_append(COALESCE(assigned_to, '{}'), $2), updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
+          transaction_date, posted_date, card_number, category_id,
+          created_at, updated_at
+`
+
+type AddPersonToTransactionParams struct {
+	ID          pgtype.UUID `json:"id"`
+	ArrayAppend interface{} `json:"array_append"`
+}
+
+func (q *Queries) AddPersonToTransaction(ctx context.Context, arg AddPersonToTransactionParams) (Transaction, error) {
+	row := q.db.QueryRow(ctx, addPersonToTransaction, arg.ID, arg.ArrayAppend)
+	var i Transaction
+	err := row.Scan(
+		&i.ID,
+		&i.Description,
+		&i.Amount,
+		&i.AssignedTo,
+		&i.DateUploaded,
+		&i.FileName,
+		&i.TransactionDate,
+		&i.PostedDate,
+		&i.CardNumber,
+		&i.CategoryID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createCategory = `-- name: CreateCategory :one
 INSERT INTO categories (name, description, color)
 VALUES ($1, $2, $3)
@@ -283,15 +317,17 @@ func (q *Queries) GetPersonByName(ctx context.Context, name string) (Person, err
 }
 
 const getTotalsByAssignedTo = `-- name: GetTotalsByAssignedTo :many
-SELECT assigned_to, SUM(amount)::numeric as total
-FROM transactions
-WHERE assigned_to IS NOT NULL AND assigned_to != ''
-GROUP BY assigned_to
-ORDER BY assigned_to
+SELECT p.name as assigned_to, SUM(t.amount / array_length(t.assigned_to, 1))::numeric as total
+FROM transactions t
+CROSS JOIN LATERAL unnest(t.assigned_to) AS person_id
+JOIN people p ON p.id = person_id
+WHERE t.assigned_to IS NOT NULL AND array_length(t.assigned_to, 1) > 0
+GROUP BY p.id, p.name
+ORDER BY p.name
 `
 
 type GetTotalsByAssignedToRow struct {
-	AssignedTo pgtype.Text    `json:"assigned_to"`
+	AssignedTo string         `json:"assigned_to"`
 	Total      pgtype.Numeric `json:"total"`
 }
 
@@ -424,11 +460,11 @@ SELECT id, description, amount, assigned_to, date_uploaded, file_name,
        transaction_date, posted_date, card_number, category_id,
        created_at, updated_at
 FROM transactions
-WHERE assigned_to = $1
+WHERE $1 = ANY(assigned_to)
 ORDER BY date_uploaded DESC
 `
 
-func (q *Queries) GetTransactionsByAssignedTo(ctx context.Context, assignedTo pgtype.Text) ([]Transaction, error) {
+func (q *Queries) GetTransactionsByAssignedTo(ctx context.Context, assignedTo []pgtype.UUID) ([]Transaction, error) {
 	rows, err := q.db.Query(ctx, getTransactionsByAssignedTo, assignedTo)
 	if err != nil {
 		return nil, err
@@ -503,6 +539,51 @@ func (q *Queries) GetTransactionsByFileName(ctx context.Context, fileName pgtype
 	return items, nil
 }
 
+const removePersonFromTransaction = `-- name: RemovePersonFromTransaction :one
+UPDATE transactions
+SET assigned_to = array_remove(assigned_to, $2), updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
+          transaction_date, posted_date, card_number, category_id,
+          created_at, updated_at
+`
+
+type RemovePersonFromTransactionParams struct {
+	ID          pgtype.UUID `json:"id"`
+	ArrayRemove interface{} `json:"array_remove"`
+}
+
+func (q *Queries) RemovePersonFromTransaction(ctx context.Context, arg RemovePersonFromTransactionParams) (Transaction, error) {
+	row := q.db.QueryRow(ctx, removePersonFromTransaction, arg.ID, arg.ArrayRemove)
+	var i Transaction
+	err := row.Scan(
+		&i.ID,
+		&i.Description,
+		&i.Amount,
+		&i.AssignedTo,
+		&i.DateUploaded,
+		&i.FileName,
+		&i.TransactionDate,
+		&i.PostedDate,
+		&i.CardNumber,
+		&i.CategoryID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const unassignTransactionsByPerson = `-- name: UnassignTransactionsByPerson :exec
+UPDATE transactions
+SET assigned_to = array_remove(assigned_to, $1), updated_at = CURRENT_TIMESTAMP
+WHERE $1 = ANY(assigned_to)
+`
+
+func (q *Queries) UnassignTransactionsByPerson(ctx context.Context, arrayRemove interface{}) error {
+	_, err := q.db.Exec(ctx, unassignTransactionsByPerson, arrayRemove)
+	return err
+}
+
 const updateCategory = `-- name: UpdateCategory :one
 UPDATE categories
 SET name = $2, description = $3, color = $4, updated_at = CURRENT_TIMESTAMP
@@ -572,8 +653,8 @@ RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
 `
 
 type UpdateTransactionAssignmentParams struct {
-	ID         pgtype.UUID `json:"id"`
-	AssignedTo pgtype.Text `json:"assigned_to"`
+	ID         pgtype.UUID   `json:"id"`
+	AssignedTo []pgtype.UUID `json:"assigned_to"`
 }
 
 func (q *Queries) UpdateTransactionAssignment(ctx context.Context, arg UpdateTransactionAssignmentParams) (Transaction, error) {

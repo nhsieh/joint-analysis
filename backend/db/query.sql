@@ -80,7 +80,7 @@ SELECT id, description, amount, assigned_to, date_uploaded, file_name,
        transaction_date, posted_date, card_number, category_id,
        created_at, updated_at
 FROM transactions
-WHERE assigned_to = $1
+WHERE $1 = ANY(assigned_to)
 ORDER BY date_uploaded DESC;
 
 -- name: GetTransactionsByFileName :many
@@ -106,6 +106,27 @@ RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
           transaction_date, posted_date, card_number, category_id,
           created_at, updated_at;
 
+-- name: AddPersonToTransaction :one
+UPDATE transactions
+SET assigned_to = array_append(COALESCE(assigned_to, '{}'), $2), updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
+          transaction_date, posted_date, card_number, category_id,
+          created_at, updated_at;
+
+-- name: RemovePersonFromTransaction :one
+UPDATE transactions
+SET assigned_to = array_remove(assigned_to, $2), updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
+          transaction_date, posted_date, card_number, category_id,
+          created_at, updated_at;
+
+-- name: UnassignTransactionsByPerson :exec
+UPDATE transactions
+SET assigned_to = array_remove(assigned_to, $1), updated_at = CURRENT_TIMESTAMP
+WHERE $1 = ANY(assigned_to);
+
 -- name: UpdateTransactionCategory :one
 UPDATE transactions
 SET category_id = $2, updated_at = CURRENT_TIMESTAMP
@@ -119,11 +140,13 @@ DELETE FROM transactions
 WHERE id = $1;
 
 -- name: GetTotalsByAssignedTo :many
-SELECT assigned_to, SUM(amount)::numeric as total
-FROM transactions
-WHERE assigned_to IS NOT NULL AND assigned_to != ''
-GROUP BY assigned_to
-ORDER BY assigned_to;
+SELECT p.name as assigned_to, SUM(t.amount / array_length(t.assigned_to, 1))::numeric as total
+FROM transactions t
+CROSS JOIN LATERAL unnest(t.assigned_to) AS person_id
+JOIN people p ON p.id = person_id
+WHERE t.assigned_to IS NOT NULL AND array_length(t.assigned_to, 1) > 0
+GROUP BY p.id, p.name
+ORDER BY p.name;
 
 -- name: GetTotalsByCategory :many
 SELECT c.name as category_name, SUM(t.amount)::numeric as total

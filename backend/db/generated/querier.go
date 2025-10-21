@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	AddPersonToTransaction(ctx context.Context, arg AddPersonToTransactionParams) (Transaction, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreatePerson(ctx context.Context, arg CreatePersonParams) (Person, error)
 	CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error)
@@ -30,8 +31,10 @@ type Querier interface {
 	GetTransactionByID(ctx context.Context, id pgtype.UUID) (Transaction, error)
 	// Transactions queries
 	GetTransactions(ctx context.Context) ([]Transaction, error)
-	GetTransactionsByAssignedTo(ctx context.Context, assignedTo pgtype.Text) ([]Transaction, error)
+	GetTransactionsByAssignedTo(ctx context.Context, assignedTo []pgtype.UUID) ([]Transaction, error)
 	GetTransactionsByFileName(ctx context.Context, fileName pgtype.Text) ([]Transaction, error)
+	RemovePersonFromTransaction(ctx context.Context, arg RemovePersonFromTransactionParams) (Transaction, error)
+	UnassignTransactionsByPerson(ctx context.Context, arrayRemove interface{}) error
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
 	UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Person, error)
 	UpdateTransactionAssignment(ctx context.Context, arg UpdateTransactionAssignmentParams) (Transaction, error)
