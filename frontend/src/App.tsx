@@ -309,105 +309,66 @@ function App() {
 
       <Content style={{ padding: '24px', background: '#f0f2f5' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          {/* Upload and Add Person Section */}
-          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            <Col xs={24} md={12}>
-              <Card
-                title={
-                  <span>
-                    <UploadOutlined style={{ marginRight: 8 }} />
-                    Upload CSV File
-                  </span>
-                }
-                variant='borderless'
-                hoverable
-              >
-                <Upload {...uploadProps}>
-                  <Button
-                    icon={<UploadOutlined />}
-                    loading={uploading}
-                    size="large"
-                    type="dashed"
-                    style={{ width: '100%', height: 60 }}
-                  >
-                    <div>
-                      <div>{uploading ? 'Uploading...' : 'Click to Upload CSV'}</div>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        Select a CSV file with expense data
-                      </Text>
-                    </div>
-                  </Button>
-                </Upload>
-              </Card>
-            </Col>
-
-            <Col xs={24} md={12}>
-              <Card
-                title={
-                  <span>
-                    <UserAddOutlined style={{ marginRight: 8 }} />
-                    Add Person
-                  </span>
-                }
-                variant='borderless'
-                hoverable
-              >
-                <Space.Compact style={{ width: '100%' }}>
+          {/* Totals Section */}
+          <Card
+            title={
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>
+                  <DollarCircleOutlined style={{ marginRight: 8 }} />
+                  Totals by Person
+                </span>
+                <Space.Compact>
                   <Input
                     placeholder="Enter person name"
                     value={newPersonName}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPersonName(e.target.value)}
                     onPressEnter={createPerson}
-                    size="large"
+                    size="middle"
+                    style={{ width: 200 }}
                   />
                   <Button
                     type="primary"
                     onClick={createPerson}
                     icon={<UserAddOutlined />}
-                    size="large"
+                    size="middle"
                   >
-                    Add
+                    Add Person
                   </Button>
                 </Space.Compact>
-              </Card>
-            </Col>
-          </Row>
-
-          {/* Totals Section */}
-          <Card
-            title={
-              <span>
-                <DollarCircleOutlined style={{ marginRight: 8 }} />
-                Totals by Person
-              </span>
+              </div>
             }
             style={{ marginBottom: 24 }}
             variant='borderless'
             hoverable
           >
-            {totals.length === 0 ? (
+            {people.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 0' }}>
                 <Text type="secondary">
-                  No data available. Upload a CSV file and assign transactions to see totals.
+                  No people added yet. Add people to start tracking expenses.
                 </Text>
               </div>
             ) : (
               <Row gutter={[16, 16]}>
-                {totals.map((total) => (
-                  <Col xs={12} sm={8} md={6} lg={4} key={total.person}>
-                    <Card size="small" style={{ textAlign: 'center' }} hoverable>
-                      <Statistic
-                        title={total.person}
-                        value={total.total}
-                        precision={2}
-                        prefix="$"
-                        valueStyle={{
-                          color: total.total > 0 ? '#3f8600' : total.total < 0 ? '#cf1322' : '#666666'
-                        }}
-                      />
-                    </Card>
-                  </Col>
-                ))}
+                {people.map((person) => {
+                  const personTotal = totals.find(t => t.person === person.name);
+                  const totalAmount = personTotal ? personTotal.total : 0;
+
+                  return (
+                    <Col xs={12} sm={8} md={6} lg={4} key={person.id}>
+                      <Card size="small" style={{ textAlign: 'center' }} hoverable>
+                        <Statistic
+                          title={person.name}
+                          value={totalAmount}
+                          precision={2}
+                          prefix="$"
+                          valueStyle={{
+                            color: totalAmount > 0 ? '#3f8600' : totalAmount < 0 ? '#cf1322' : '#666666'
+                          }}
+                        />
+                      </Card>
+                    </Col>
+                  );
+                })}
               </Row>
             )}
           </Card>
@@ -415,10 +376,22 @@ function App() {
           {/* Transactions Section */}
           <Card
             title={
-              <span>
-                <FileTextOutlined style={{ marginRight: 8 }} />
-                Transactions ({transactions.length})
-              </span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>
+                  <FileTextOutlined style={{ marginRight: 8 }} />
+                  Transactions ({transactions.length})
+                </span>
+                <Upload {...uploadProps}>
+                  <Button
+                    icon={<UploadOutlined />}
+                    loading={uploading}
+                    type="primary"
+                    size="middle"
+                  >
+                    {uploading ? 'Uploading...' : 'Upload CSV'}
+                  </Button>
+                </Upload>
+              </div>
             }
             variant='borderless'
             hoverable
