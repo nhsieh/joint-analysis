@@ -2,7 +2,7 @@
 -- name: GetPeople :many
 SELECT id, name, email, created_at, updated_at
 FROM people
-ORDER BY name;
+ORDER BY created_at;
 
 -- name: GetPersonByID :one
 SELECT id, name, email, created_at, updated_at

@@ -44,6 +44,9 @@ interface Transaction {
 interface Person {
   id: string;
   name: string;
+  email?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface Category {
@@ -147,7 +150,6 @@ function App() {
       await axios.put(`${API_URL}/api/transactions/${transactionId}/assign`, {
         assigned_to: assignedPeopleUUIDs,
       });
-      message.success('Transaction assigned successfully!');
       fetchTransactions();
       fetchTotals();
     } catch (error) {
@@ -390,40 +392,76 @@ function App() {
                 </Text>
               </div>
             ) : (
-              <Row gutter={[16, 16]}>
-                {people.map((person) => {
-                  const personTotal = totals.find(t => t.person === person.name);
-                  const totalAmount = personTotal ? personTotal.total : 0;
+              <Row gutter={[24, 16]} align="top">
+                {/* Individual Totals Section */}
+                <Col xs={24} lg={18} xl={16}>
+                  <Row gutter={[16, 16]}>
+                    {people.map((person) => {
+                      const personTotal = totals.find(t => t.person === person.name);
+                      const totalAmount = personTotal ? personTotal.total : 0;
 
-                  return (
-                    <Col xs={12} sm={8} md={6} lg={4} key={person.id}>
-                      <Card
-                        size="small"
-                        style={{ textAlign: 'center' }}
-                        hoverable
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                          <Text strong style={{ fontSize: 14 }}>{person.name}</Text>
-                          <Button
-                            type="text"
-                            danger
+                      return (
+                        <Col xs={12} sm={8} md={8} lg={8} xl={6} key={person.id}>
+                          <Card
                             size="small"
-                            icon={<DeleteOutlined />}
-                            onClick={() => deletePerson(person.id, person.name)}
-                          />
-                        </div>
+                            style={{ textAlign: 'center' }}
+                            hoverable
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <Text strong style={{ fontSize: 18 }}>{person.name}</Text>
+                              <Button
+                                type="text"
+                                danger
+                                size="small"
+                                icon={<DeleteOutlined />}
+                                onClick={() => deletePerson(person.id, person.name)}
+                              />
+                            </div>
+                            <Statistic
+                              value={totalAmount}
+                              precision={2}
+                              prefix="$"
+                              valueStyle={{
+                                color: totalAmount > 0 ? '#3f8600' : totalAmount < 0 ? '#cf1322' : '#666666'
+                              }}
+                            />
+                          </Card>
+                        </Col>
+                      );
+                    })}
+                  </Row>
+                </Col>
+
+                {/* Grand Total Section */}
+                <Col xs={24} lg={6} xl={8}>
+                  <Card
+                    size="small"
+                    style={{
+                      textAlign: 'center',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      border: 'none'
+                    }}
+                    hoverable
+                  >
+                    <div style={{ color: 'white' }}>
+                      <Text style={{ color: 'white', fontSize: 16, fontWeight: 500 }}>
+                        Grand Total
+                      </Text>
+                      <div style={{ marginTop: 8 }}>
                         <Statistic
-                          value={totalAmount}
+                          value={totals.reduce((sum, total) => sum + total.total, 0)}
                           precision={2}
                           prefix="$"
                           valueStyle={{
-                            color: totalAmount > 0 ? '#3f8600' : totalAmount < 0 ? '#cf1322' : '#666666'
+                            color: 'white',
+                            fontSize: 32,
+                            fontWeight: 'bold'
                           }}
                         />
-                      </Card>
-                    </Col>
-                  );
-                })}
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
               </Row>
             )}
           </Card>

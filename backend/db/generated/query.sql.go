@@ -257,7 +257,7 @@ func (q *Queries) GetCategoryByName(ctx context.Context, name string) (Category,
 const getPeople = `-- name: GetPeople :many
 SELECT id, name, email, created_at, updated_at
 FROM people
-ORDER BY name
+ORDER BY created_at
 `
 
 // People queries
