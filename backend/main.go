@@ -206,6 +206,7 @@ func main() {
 	r.PUT("/api/transactions/:id/assign", assignTransaction)
 	r.GET("/api/people", getPeople)
 	r.POST("/api/people", createPerson)
+	r.DELETE("/api/people/:id", deletePerson)
 	r.GET("/api/categories", getCategories)
 	r.POST("/api/categories", createCategory)
 	r.GET("/api/totals", getTotals)
@@ -504,6 +505,27 @@ func createPerson(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, person)
+}
+
+func deletePerson(c *gin.Context) {
+	id := c.Param("id")
+
+	// Parse UUID from string
+	personUUID, err := uuid.Parse(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid person ID"})
+		return
+	}
+
+	// Delete the person using the generated function
+	err = queries.DeletePerson(context.Background(), pgtype.UUID{Bytes: personUUID, Valid: true})
+	if err != nil {
+		log.Printf("Error deleting person: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting person"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Person deleted successfully"})
 }
 
 func getTotals(c *gin.Context) {

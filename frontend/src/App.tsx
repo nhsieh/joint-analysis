@@ -21,6 +21,7 @@ import {
   UserAddOutlined,
   DollarCircleOutlined,
   FileTextOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { UploadProps, RcFile } from 'antd/es/upload';
 import { ColumnsType } from 'antd/es/table';
@@ -39,7 +40,7 @@ interface Transaction {
 }
 
 interface Person {
-  id: number;
+  id: string;
   name: string;
 }
 
@@ -167,6 +168,18 @@ function App() {
     } catch (error) {
       console.error('Error creating person:', error);
       message.error('Error creating person');
+    }
+  };
+
+  const deletePerson = async (personId: string, personName: string) => {
+    try {
+      await axios.delete(`${API_URL}/api/people/${personId}`);
+      message.success(`${personName} deleted successfully!`);
+      fetchPeople();
+      fetchTotals();
+    } catch (error) {
+      console.error('Error deleting person:', error);
+      message.error('Error deleting person');
     }
   };
 
@@ -355,9 +368,22 @@ function App() {
 
                   return (
                     <Col xs={12} sm={8} md={6} lg={4} key={person.id}>
-                      <Card size="small" style={{ textAlign: 'center' }} hoverable>
+                      <Card
+                        size="small"
+                        style={{ textAlign: 'center' }}
+                        hoverable
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <Text strong style={{ fontSize: 14 }}>{person.name}</Text>
+                          <Button
+                            type="text"
+                            danger
+                            size="small"
+                            icon={<DeleteOutlined />}
+                            onClick={() => deletePerson(person.id, person.name)}
+                          />
+                        </div>
                         <Statistic
-                          title={person.name}
                           value={totalAmount}
                           precision={2}
                           prefix="$"
