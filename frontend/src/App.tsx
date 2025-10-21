@@ -75,6 +75,8 @@ function App() {
   const [newPersonName, setNewPersonName] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     fetchTransactions();
@@ -88,6 +90,7 @@ function App() {
       setLoading(true);
       const response = await axios.get(`${API_URL}/api/transactions`);
       setTransactions(response.data || []);
+      setCurrentPage(1); // Reset to first page when fetching new data
     } catch (error) {
       console.error('Error fetching transactions:', error);
     } finally {
@@ -506,12 +509,21 @@ function App() {
                 dataSource={transactions}
                 rowKey="id"
                 pagination={{
-                  pageSize: 10,
+                  current: currentPage,
+                  pageSize: pageSize,
                   showSizeChanger: true,
                   showQuickJumper: false,
                   showTotal: (total: number, range: [number, number]) =>
                     `${range[0]}-${range[1]} of ${total} transactions`,
                   pageSizeOptions: ['10', '20', '50', '100'],
+                  onChange: (page: number, size: number) => {
+                    setCurrentPage(page);
+                    setPageSize(size);
+                  },
+                  onShowSizeChange: (current: number, size: number) => {
+                    setCurrentPage(1); // Reset to first page when changing page size
+                    setPageSize(size);
+                  },
                 }}
                 scroll={{ x: 910 }}
                 locale={{
