@@ -23,6 +23,7 @@ import {
   DollarCircleOutlined,
   FileTextOutlined,
   DeleteOutlined,
+  ClearOutlined,
 } from '@ant-design/icons';
 import { UploadProps, RcFile } from 'antd/es/upload';
 import { ColumnsType } from 'antd/es/table';
@@ -181,6 +182,18 @@ function App() {
     } catch (error) {
       console.error('Error deleting person:', error);
       message.error('Error deleting person');
+    }
+  };
+
+  const clearAllTransactions = async () => {
+    try {
+      await axios.delete(`${API_URL}/api/transactions`);
+      message.success('All transactions cleared successfully!');
+      fetchTransactions();
+      fetchTotals();
+    } catch (error) {
+      console.error('Error clearing transactions:', error);
+      message.error('Error clearing transactions');
     }
   };
 
@@ -423,16 +436,27 @@ function App() {
                   <FileTextOutlined style={{ marginRight: 8 }} />
                   Transactions ({transactions.length})
                 </span>
-                <Upload {...uploadProps}>
+                <div style={{ display: 'flex', gap: '8px' }}>
                   <Button
-                    icon={<UploadOutlined />}
-                    loading={uploading}
-                    type="primary"
+                    icon={<ClearOutlined />}
+                    danger
                     size="middle"
+                    onClick={clearAllTransactions}
+                    disabled={transactions.length === 0}
                   >
-                    {uploading ? 'Uploading...' : 'Upload CSV'}
+                    Clear All
                   </Button>
-                </Upload>
+                  <Upload {...uploadProps}>
+                    <Button
+                      icon={<UploadOutlined />}
+                      loading={uploading}
+                      type="primary"
+                      size="middle"
+                    >
+                      {uploading ? 'Uploading...' : 'Upload CSV'}
+                    </Button>
+                  </Upload>
+                </div>
               </div>
             }
             variant='borderless'

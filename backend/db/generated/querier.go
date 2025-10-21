@@ -15,6 +15,7 @@ type Querier interface {
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreatePerson(ctx context.Context, arg CreatePersonParams) (Person, error)
 	CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error)
+	DeleteAllTransactions(ctx context.Context) error
 	DeleteCategory(ctx context.Context, id pgtype.UUID) error
 	DeletePerson(ctx context.Context, id pgtype.UUID) error
 	DeleteTransaction(ctx context.Context, id pgtype.UUID) error

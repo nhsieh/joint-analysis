@@ -141,6 +141,15 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 	return i, err
 }
 
+const deleteAllTransactions = `-- name: DeleteAllTransactions :exec
+DELETE FROM transactions
+`
+
+func (q *Queries) DeleteAllTransactions(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteAllTransactions)
+	return err
+}
+
 const deleteCategory = `-- name: DeleteCategory :exec
 DELETE FROM categories
 WHERE id = $1

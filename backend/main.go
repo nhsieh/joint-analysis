@@ -203,6 +203,7 @@ func main() {
 	// Routes
 	r.POST("/api/upload-csv", uploadCSV)
 	r.GET("/api/transactions", getTransactions)
+	r.DELETE("/api/transactions", clearAllTransactions)
 	r.PUT("/api/transactions/:id/assign", assignTransaction)
 	r.GET("/api/people", getPeople)
 	r.POST("/api/people", createPerson)
@@ -541,6 +542,17 @@ func assignTransaction(c *gin.Context) {
 	// Convert and return the updated transaction
 	transaction := convertTransactionFromUpdateRow(dbTransaction)
 	c.JSON(http.StatusOK, transaction)
+}
+
+func clearAllTransactions(c *gin.Context) {
+	err := queries.DeleteAllTransactions(context.Background())
+	if err != nil {
+		log.Printf("Error clearing all transactions: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error clearing transactions"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "All transactions cleared successfully"})
 }
 
 func getPeople(c *gin.Context) {

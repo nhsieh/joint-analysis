@@ -155,3 +155,6 @@ JOIN categories c ON t.category_id = c.id
 WHERE t.category_id IS NOT NULL
 GROUP BY c.id, c.name
 ORDER BY c.name;
+
+-- name: DeleteAllTransactions :exec
+DELETE FROM transactions;
