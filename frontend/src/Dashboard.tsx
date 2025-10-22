@@ -469,7 +469,7 @@ const Dashboard: React.FC = () => {
                         <Card
                           size="small"
                           hoverable
-                          style={{ height: '100%', minHeight: '580px' }}
+                          style={{ height: '100%', minHeight: '420px' }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                             <Text strong style={{ fontSize: 18 }}>{person.name}</Text>
@@ -518,39 +518,81 @@ const Dashboard: React.FC = () => {
                               </div>
                             ) : (
                               <div style={{
-                                height: 400,
-                                padding: '20px',
+                                minHeight: 400,
                                 background: '#fafafa',
-                                borderRadius: '8px'
+                                display: 'flex',
+                                flexDirection: 'column',
                               }}>
-                                <Pie
-                                  key={`${person.name}-${JSON.stringify(chartData.map(item => ({ name: item.name, value: item.value })))}`}
-                                  data={chartData.map(item => ({ type: item.name, value: item.value }))}
-                                  angleField="value"
-                                  colorField="type"
-                                  radius={0.8}
-                                  innerRadius={0.3}
-                                  scale={{
-                                    color: {
-                                      relations: chartData.map(item => [item.name, item.color]),
-                                    },
-                                  }}
-                                  legend={{
-                                    position: 'right',
-                                    layout: 'vertical',
-                                    itemName: {
-                                      style: {
-                                        fontSize: 12,
-                                        fontWeight: 500,
+                                {/* Pie Chart */}
+                                <div style={{
+                                  height: '320px', // Fixed height for consistent alignment
+                                  display: 'flex',
+                                  justifyContent: 'center',
+                                  alignItems: 'center',
+                                }}>
+                                  <Pie
+                                    key={`${person.name}-${JSON.stringify(chartData.map(item => ({ name: item.name, value: item.value })))}`}
+                                    data={(() => {
+                                      const total = chartData.reduce((sum, d) => sum + d.value, 0);
+                                      return chartData.map(item => ({
+                                        type: item.name, // Keep original name for pie chart
+                                        value: item.value,
+                                        originalName: item.name,
+                                        color: item.color
+                                      }));
+                                    })()}
+                                    angleField="value"
+                                    colorField="type"
+                                    radius={0.75}
+                                    innerRadius={0.3}
+                                    scale={{
+                                      color: {
+                                        relations: chartData.map(item => [item.name, item.color]),
                                       },
-                                    },
-                                  }}
-                                  interactions={[
-                                    { type: 'element-highlight' },
-                                    { type: 'pie-legend-active' }
-                                  ]}
-                                />
-                              </div>
+                                    }}
+                                    legend={false}
+                                    interactions={[
+                                      { type: 'element-highlight' },
+                                    ]}
+                                  />
+                                </div>
+
+                                {/* Custom Legend */}
+                                <div style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '8px',
+                                  padding: '16px' // Add padding all around legend
+                                }}>
+                                  {(() => {
+                                    const total = chartData.reduce((sum, d) => sum + d.value, 0);
+                                    return chartData.map((item, index) => (
+                                      <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                        <div
+                                          style={{
+                                            width: '12px',
+                                            height: '12px',
+                                            borderRadius: '50%',
+                                            backgroundColor: item.color,
+                                            marginTop: '2px',
+                                            flexShrink: 0
+                                          }}
+                                        />
+                                        <div style={{ fontSize: '12px', lineHeight: '1.2', flex: 1 }}>
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontWeight: 500, color: '#333' }}>
+                                              {item.name} ({((item.value / total) * 100).toFixed(1)}%)
+                                            </span>
+                                            <span style={{ color: '#666', fontSize: '11px' }}>
+                                              ${item.value.toFixed(2)}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ));
+                                  })()}
+                                </div>
+                                </div>
                             )}
                           </div>
                         </Card>
