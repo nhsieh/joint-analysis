@@ -62,7 +62,8 @@ INSERT INTO categories (name, description, color) VALUES
     ('Shopping', 'Retail purchases, online shopping', '#AB47BC'),
     ('Entertainment', 'Movies, concerts, streaming services', '#66BB6A'),
     ('Utilities', 'Electric, gas, water, internet, phone', '#FFA726'),
-    ('Healthcare', 'Medical expenses, pharmacy, insurance', '#EF5350'),
+    ('Health & Fitness', 'Medical expenses, pharmacy, insurance, gym membership', '#EF5350'),
     ('Travel', 'Flights, hotels, vacation expenses', '#26C6DA'),
     ('Fees', 'Bank fees, interest charges, service fees', '#8D6E63'),
+    ('Pets', 'Pet care, grooming, supplies, insurance', '#13AFADFF'),
     ('Other', 'Miscellaneous expenses', '#78909C');
