@@ -23,7 +23,9 @@ import {
   FileTextOutlined,
   DeleteOutlined,
   ClearOutlined,
+  PieChartOutlined,
 } from '@ant-design/icons';
+import { Pie } from '@ant-design/charts';
 import { UploadProps, RcFile } from 'antd/es/upload';
 import { ColumnsType } from 'antd/es/table';
 
@@ -60,7 +62,7 @@ interface PersonTotal {
   total: number;
 }
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { Option } = Select;
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081';
 
@@ -120,6 +122,66 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Error fetching totals:', error);
     }
+  };
+
+  // Define a consistent color palette for categories
+  const getCategoryColor = (categoryName: string) => {
+    // First, try to find the category in the database and use its color
+    const category = categories.find(c => c.name === categoryName);
+    if (category && category.color) {
+      return category.color;
+    }
+
+    // Fallback color palette for categories not in database or without colors
+    const colorPalette = [
+      '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+      '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+      '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
+      '#c49c94', '#f7b6d3', '#c7c7c7', '#dbdb8d', '#9edae5'
+    ];
+
+    // Create a hash of the category name to ensure consistent color assignment
+    let hash = 0;
+    for (let i = 0; i < categoryName.length; i++) {
+      const char = categoryName.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+
+    return colorPalette[Math.abs(hash) % colorPalette.length];
+  };
+
+  // Function to get pie chart data for a specific person
+  const getPieChartData = (personName: string) => {
+    // Filter transactions assigned to this person
+    const personTransactions = transactions.filter(t =>
+      (t.assigned_to || []).includes(personName) && t.amount > 0 // Only include debits (expenses)
+    );
+
+    // Group by category
+    const categoryTotals: { [key: string]: number } = {};
+
+    personTransactions.forEach(transaction => {
+      const category = categories.find(c => c.id === transaction.category_id);
+      const categoryName = category ? category.name : 'Uncategorized';
+
+      // Split amount evenly among assigned people
+      const assignedCount = transaction.assigned_to ? transaction.assigned_to.length : 1;
+      const splitAmount = transaction.amount / assignedCount;
+
+      categoryTotals[categoryName] = (categoryTotals[categoryName] || 0) + splitAmount;
+    });
+
+    // Convert to chart data format
+    const chartData = Object.entries(categoryTotals)
+      .map(([name, value]) => ({
+        name,
+        value,
+        color: getCategoryColor(name),
+      }))
+      .sort((a, b) => b.value - a.value); // Sort by amount descending
+
+    return chartData;
   };
 
   const handleFileUpload = async (file: RcFile): Promise<boolean> => {
@@ -394,20 +456,22 @@ const Dashboard: React.FC = () => {
           ) : (
             <Row gutter={[24, 16]} align="top">
               {/* Individual Totals Section */}
-              <Col xs={24} lg={18} xl={16}>
-                <Row gutter={[16, 16]}>
+              <Col xs={24} lg={24} xl={18}>
+                <Row gutter={[24, 24]}>
                   {people.map((person) => {
                     const personTotal = totals.find(t => t.person === person.name);
                     const totalAmount = personTotal ? personTotal.total : 0;
+                    const chartData = getPieChartData(person.name);
+                    const hasExpenses = chartData.length > 0 && chartData.some(d => d.value > 0);
 
                     return (
-                      <Col xs={12} sm={8} md={8} lg={8} xl={6} key={person.id}>
+                      <Col xs={24} lg={12} xl={8} key={person.id}>
                         <Card
                           size="small"
-                          style={{ textAlign: 'center' }}
                           hoverable
+                          style={{ height: '100%', minHeight: '580px' }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                             <Text strong style={{ fontSize: 18 }}>{person.name}</Text>
                             <Button
                               type="text"
@@ -417,14 +481,78 @@ const Dashboard: React.FC = () => {
                               onClick={() => deletePerson(person.id, person.name)}
                             />
                           </div>
-                          <Statistic
-                            value={totalAmount}
-                            precision={2}
-                            prefix="$"
-                            valueStyle={{
-                              color: totalAmount > 0 ? '#3f8600' : totalAmount < 0 ? '#cf1322' : '#666666'
-                            }}
-                          />
+
+                          {/* Total Section - Centered Above Chart */}
+                          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                            <Statistic
+                              value={totalAmount}
+                              precision={2}
+                              prefix="$"
+                              valueStyle={{
+                                color: totalAmount > 0 ? '#3f8600' : totalAmount < 0 ? '#cf1322' : '#666666',
+                                fontSize: '28px',
+                                fontWeight: 'bold'
+                              }}
+                            />
+                          </div>
+
+                          {/* Pie Chart Section - Larger and More Prominent */}
+                          <div style={{ width: '100%' }}>
+                            {!hasExpenses ? (
+                              <div style={{
+                                textAlign: 'center',
+                                padding: '60px 20px',
+                                background: '#fafafa',
+                                borderRadius: '8px',
+                                border: '2px dashed #d9d9d9'
+                              }}>
+                                <PieChartOutlined style={{ fontSize: '48px', color: '#d9d9d9', marginBottom: '16px' }} />
+                                <div>
+                                  <Text type="secondary" style={{ fontSize: '16px', display: 'block' }}>
+                                    No expenses assigned
+                                  </Text>
+                                  <Text type="secondary" style={{ fontSize: '14px' }}>
+                                    Assign transactions to see spending breakdown
+                                  </Text>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{
+                                height: 400,
+                                padding: '20px',
+                                background: '#fafafa',
+                                borderRadius: '8px'
+                              }}>
+                                <Pie
+                                  key={`${person.name}-${JSON.stringify(chartData.map(item => ({ name: item.name, value: item.value })))}`}
+                                  data={chartData.map(item => ({ type: item.name, value: item.value }))}
+                                  angleField="value"
+                                  colorField="type"
+                                  radius={0.8}
+                                  innerRadius={0.3}
+                                  scale={{
+                                    color: {
+                                      relations: chartData.map(item => [item.name, item.color]),
+                                    },
+                                  }}
+                                  legend={{
+                                    position: 'right',
+                                    layout: 'vertical',
+                                    itemName: {
+                                      style: {
+                                        fontSize: 12,
+                                        fontWeight: 500,
+                                      },
+                                    },
+                                  }}
+                                  interactions={[
+                                    { type: 'element-highlight' },
+                                    { type: 'pie-legend-active' }
+                                  ]}
+                                />
+                              </div>
+                            )}
+                          </div>
                         </Card>
                       </Col>
                     );
@@ -433,13 +561,16 @@ const Dashboard: React.FC = () => {
               </Col>
 
               {/* Grand Total Section */}
-              <Col xs={24} lg={6} xl={8}>
+              <Col xs={24} lg={24} xl={6}>
                 <Card
                   size="small"
                   style={{
                     textAlign: 'center',
                     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    border: 'none'
+                    border: 'none',
+                    height: 'fit-content',
+                    position: 'sticky',
+                    top: '24px'
                   }}
                   hoverable
                 >

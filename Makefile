@@ -10,7 +10,9 @@ help:
 	@echo "  down             - Stop all services"
 	@echo "  restart          - Restart all services"
 	@echo "  rebuild-backend  - Rebuild only the backend container"
+	@echo "  rebuild-frontend - Rebuild only the frontend container"
 	@echo "  restart-backend  - Restart only the backend service"
+	@echo "  restart-frontend - Restart only the frontend service"
 	@echo "  logs             - Show logs for all services"
 	@echo "  logs-backend     - Show logs for backend service only"
 	@echo "  generate-db      - Generate database code using sqlc"
@@ -40,13 +42,25 @@ restart:
 rebuild-backend:
 	docker-compose build backend
 
+# Rebuild only the frontend container
+rebuild-frontend:
+	docker-compose build frontend
+
 # Restart only the backend service
 restart-backend:
 	docker-compose up -d backend
 
+# Restart only the frontend service
+restart-frontend:
+	docker-compose up -d frontend
+
 # Rebuild and restart backend (useful after code changes)
 reload-backend: rebuild-backend restart-backend
 	@echo "Backend reloaded successfully!"
+
+# Rebuild and restart frontend (useful after dependency changes)
+reload-frontend: rebuild-frontend restart-frontend
+	@echo "Frontend reloaded successfully!"
 
 # Show logs for all services
 logs:
