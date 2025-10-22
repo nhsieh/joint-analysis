@@ -16,6 +16,11 @@ import {
   message,
   Spin,
   Checkbox,
+  Modal,
+  Form,
+  ColorPicker,
+  Popconfirm,
+  Divider,
 } from 'antd';
 import {
   UploadOutlined,
@@ -24,6 +29,9 @@ import {
   FileTextOutlined,
   DeleteOutlined,
   ClearOutlined,
+  EditOutlined,
+  PlusOutlined,
+  TagOutlined,
 } from '@ant-design/icons';
 import { UploadProps, RcFile } from 'antd/es/upload';
 import { ColumnsType } from 'antd/es/table';
@@ -77,6 +85,9 @@ function App() {
   const [uploading, setUploading] = useState(false);
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [categoryForm] = Form.useForm();
 
   useEffect(() => {
     fetchTransactions();
@@ -202,6 +213,77 @@ function App() {
     }
   };
 
+  // Category management functions
+  const openCategoryModal = (category?: Category) => {
+    setEditingCategory(category || null);
+    setCategoryModalVisible(true);
+    if (category) {
+      categoryForm.setFieldsValue({
+        name: category.name,
+        description: category.description || '',
+        color: category.color || '#1890ff',
+      });
+    } else {
+      categoryForm.resetFields();
+    }
+  };
+
+  const closeCategoryModal = () => {
+    setCategoryModalVisible(false);
+    setEditingCategory(null);
+    categoryForm.resetFields();
+  };
+
+  const handleCategorySubmit = async (values: any) => {
+    try {
+      const categoryData = {
+        name: values.name,
+        description: values.description || '',
+        color: values.color?.toHexString?.() || values.color || '#1890ff',
+      };
+
+      if (editingCategory) {
+        // Update existing category
+        await axios.put(`${API_URL}/api/categories/${editingCategory.id}`, categoryData);
+        message.success('Category updated successfully!');
+      } else {
+        // Create new category
+        await axios.post(`${API_URL}/api/categories`, categoryData);
+        message.success('Category created successfully!');
+      }
+
+      fetchCategories();
+      closeCategoryModal();
+    } catch (error) {
+      console.error('Error saving category:', error);
+      message.error(`Error ${editingCategory ? 'updating' : 'creating'} category`);
+    }
+  };
+
+  const deleteCategory = async (categoryId: string, categoryName: string) => {
+    try {
+      await axios.delete(`${API_URL}/api/categories/${categoryId}`);
+      message.success(`${categoryName} deleted successfully!`);
+      fetchCategories();
+      fetchTransactions(); // Refresh transactions to update category display
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      message.error('Error deleting category');
+    }
+  };
+
+  const updateTransactionCategory = async (transactionId: string, categoryId: string | null) => {
+    try {
+      await axios.put(`${API_URL}/api/transactions/${transactionId}/category`, {
+        category_id: categoryId,
+      });
+      fetchTransactions();
+    } catch (error) {
+      console.error('Error updating transaction category:', error);
+      message.error('Error updating transaction category');
+    }
+  };
+
   const uploadProps: UploadProps = {
     name: 'file',
     accept: '.csv',
@@ -253,20 +335,24 @@ function App() {
       title: 'Category',
       dataIndex: 'category_id',
       key: 'category_id',
-      render: (categoryId: string) => {
-        if (!categoryId) {
-          return <Text type="secondary" italic>Uncategorized</Text>;
-        }
-        const category = categories.find(cat => cat.id === categoryId);
-        return category ? (
-          <Text style={{ color: category.color }}>
-            {category.name}
-          </Text>
-        ) : (
-          <Text type="secondary">Unknown Category</Text>
-        );
-      },
-      width: 100,
+      render: (categoryId: string, record: Transaction) => (
+        <Select
+          style={{ width: '100%' }}
+          placeholder="Select category"
+          value={categoryId || undefined}
+          onChange={(value) => updateTransactionCategory(record.id, value || null)}
+          allowClear
+        >
+          {categories.map((category) => (
+            <Option key={category.id} value={category.id}>
+              <span style={{ color: category.color }}>
+                {category.name}
+              </span>
+            </Option>
+          ))}
+        </Select>
+      ),
+      width: 150,
     },
     {
       title: 'Amount',
@@ -469,6 +555,102 @@ function App() {
             )}
           </Card>
 
+          {/* Categories Management Section */}
+          <Card
+            title={
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>
+                  <TagOutlined style={{ marginRight: 8 }} />
+                  Categories ({categories.length})
+                </span>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  size="middle"
+                  onClick={() => openCategoryModal()}
+                >
+                  Add Category
+                </Button>
+              </div>
+            }
+            style={{ marginBottom: 24 }}
+            variant='borderless'
+            hoverable
+          >
+            <Row gutter={[8, 8]}>
+              {categories.map((category) => (
+                <Col xs={12} sm={8} md={6} lg={4} xl={3} key={category.id}>
+                  <Card
+                    size="small"
+                    style={{
+                      textAlign: 'center',
+                      borderColor: category.color,
+                      borderWidth: 1,
+                      minHeight: '80px',
+                    }}
+                    bodyStyle={{ padding: '8px' }}
+                    hoverable
+                  >
+                    <div style={{
+                      background: category.color,
+                      color: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      marginBottom: '4px',
+                      fontWeight: 'bold',
+                      fontSize: '12px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>
+                      {category.name}
+                    </div>
+                    {category.description && (
+                      <Text
+                        type="secondary"
+                        style={{
+                          fontSize: '10px',
+                          display: 'block',
+                          lineHeight: '1.2',
+                          marginBottom: '4px',
+                          height: '24px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {category.description}
+                      </Text>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
+                      <Button
+                        type="text"
+                        icon={<EditOutlined />}
+                        size="small"
+                        style={{ padding: '2px 4px', minWidth: 'auto' }}
+                        onClick={() => openCategoryModal(category)}
+                      />
+                      <Popconfirm
+                        title="Delete Category"
+                        description={`Are you sure you want to delete "${category.name}"?`}
+                        onConfirm={() => deleteCategory(category.id, category.name)}
+                        okText="Yes"
+                        cancelText="No"
+                      >
+                        <Button
+                          type="text"
+                          danger
+                          icon={<DeleteOutlined />}
+                          size="small"
+                          style={{ padding: '2px 4px', minWidth: 'auto' }}
+                        />
+                      </Popconfirm>
+                    </div>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+          </Card>
+
           {/* Transactions Section */}
           <Card
             title={
@@ -541,6 +723,69 @@ function App() {
           </Card>
         </div>
       </Content>
+
+      {/* Category Modal */}
+      <Modal
+        title={editingCategory ? 'Edit Category' : 'Add Category'}
+        open={categoryModalVisible}
+        onCancel={closeCategoryModal}
+        footer={null}
+        width={500}
+      >
+        <Form
+          form={categoryForm}
+          layout="vertical"
+          onFinish={handleCategorySubmit}
+        >
+          <Form.Item
+            name="name"
+            label="Category Name"
+            rules={[{ required: true, message: 'Please enter a category name' }]}
+          >
+            <Input placeholder="Enter category name" />
+          </Form.Item>
+
+          <Form.Item
+            name="description"
+            label="Description (Optional)"
+          >
+            <Input.TextArea
+              placeholder="Enter category description"
+              rows={3}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="color"
+            label="Color"
+            rules={[{ required: true, message: 'Please select a color' }]}
+          >
+            <ColorPicker
+              showText
+              presets={[
+                {
+                  label: 'Recommended',
+                  colors: [
+                    '#FF7043', '#42A5F5', '#AB47BC', '#66BB6A', '#FFA726',
+                    '#EF5350', '#26C6DA', '#8D6E63', '#78909C', '#1890ff',
+                  ],
+                },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+            <Space>
+              <Button onClick={closeCategoryModal}>
+                Cancel
+              </Button>
+              <Button type="primary" htmlType="submit">
+                {editingCategory ? 'Update' : 'Create'}
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
     </Layout>
   );
 }

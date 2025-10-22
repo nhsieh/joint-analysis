@@ -210,6 +210,9 @@ func main() {
 	r.DELETE("/api/people/:id", deletePerson)
 	r.GET("/api/categories", getCategories)
 	r.POST("/api/categories", createCategory)
+	r.PUT("/api/categories/:id", updateCategory)
+	r.DELETE("/api/categories/:id", deleteCategory)
+	r.PUT("/api/transactions/:id/category", updateTransactionCategory)
 	r.GET("/api/totals", getTotals)
 
 	port := os.Getenv("PORT")
@@ -760,4 +763,138 @@ func createCategory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, resultCategory)
+}
+
+func updateCategory(c *gin.Context) {
+	id := c.Param("id")
+	var category Category
+	if err := c.ShouldBindJSON(&category); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Parse UUID from string
+	categoryUUID, err := uuid.Parse(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid category ID"})
+		return
+	}
+
+	// Create parameters for the generated function
+	params := generated.UpdateCategoryParams{
+		ID:   pgtype.UUID{Bytes: categoryUUID, Valid: true},
+		Name: category.Name,
+	}
+
+	// Handle optional fields
+	if category.Description != nil {
+		params.Description = pgtype.Text{String: *category.Description, Valid: true}
+	}
+	if category.Color != nil {
+		params.Color = pgtype.Text{String: *category.Color, Valid: true}
+	}
+
+	dbCategory, err := queries.UpdateCategory(context.Background(), params)
+	if err != nil {
+		log.Printf("Error updating category: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating category"})
+		return
+	}
+
+	// Convert back to API type
+	resultCategory := Category{
+		ID:        uuid.UUID(dbCategory.ID.Bytes).String(),
+		Name:      dbCategory.Name,
+		CreatedAt: dbCategory.CreatedAt.Time,
+		UpdatedAt: dbCategory.UpdatedAt.Time,
+	}
+
+	if dbCategory.Description.Valid {
+		resultCategory.Description = &dbCategory.Description.String
+	}
+	if dbCategory.Color.Valid {
+		resultCategory.Color = &dbCategory.Color.String
+	}
+
+	c.JSON(http.StatusOK, resultCategory)
+}
+
+func deleteCategory(c *gin.Context) {
+	id := c.Param("id")
+
+	// Parse UUID from string
+	categoryUUID, err := uuid.Parse(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid category ID"})
+		return
+	}
+
+	// Create pgtype.UUID for the queries
+	categoryUUIDpg := pgtype.UUID{Bytes: categoryUUID, Valid: true}
+
+	// First, get the category to ensure it exists
+	_, err = queries.GetCategoryByID(context.Background(), categoryUUIDpg)
+	if err != nil {
+		log.Printf("Error finding category: %v", err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Category not found"})
+		return
+	}
+
+	// Delete the category
+	err = queries.DeleteCategory(context.Background(), categoryUUIDpg)
+	if err != nil {
+		log.Printf("Error deleting category: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting category"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Category deleted successfully"})
+}
+
+func updateTransactionCategory(c *gin.Context) {
+	id := c.Param("id")
+	var request struct {
+		CategoryID *string `json:"category_id"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Parse transaction UUID from string
+	transactionUUID, err := uuid.Parse(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid transaction ID"})
+		return
+	}
+
+	// Create parameters for the generated function
+	params := generated.UpdateTransactionCategoryParams{
+		ID: pgtype.UUID{Bytes: transactionUUID, Valid: true},
+	}
+
+	// Handle category ID
+	if request.CategoryID != nil && *request.CategoryID != "" {
+		categoryUUID, err := uuid.Parse(*request.CategoryID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid category ID"})
+			return
+		}
+		params.CategoryID = pgtype.UUID{Bytes: categoryUUID, Valid: true}
+	} else {
+		// Set to NULL if no category provided
+		params.CategoryID = pgtype.UUID{Valid: false}
+	}
+
+	dbTransaction, err := queries.UpdateTransactionCategory(context.Background(), params)
+	if err != nil {
+		log.Printf("Error updating transaction category: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating transaction category"})
+		return
+	}
+
+	// Convert and return the updated transaction
+	transaction := convertTransactionFromUpdateRow(dbTransaction)
+	c.JSON(http.StatusOK, transaction)
 }
