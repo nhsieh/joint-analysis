@@ -57,13 +57,15 @@ ON UPDATE CASCADE ON DELETE SET NULL;
 
 -- Insert default categories
 INSERT INTO categories (name, description, color) VALUES
-    ('Food & Dining', 'Restaurants, groceries, food delivery', '#FF7043'),
-    ('Transportation', 'Gas, public transit, rideshare, parking', '#42A5F5'),
-    ('Shopping', 'Retail purchases, online shopping', '#AB47BC'),
     ('Entertainment', 'Movies, concerts, streaming services', '#66BB6A'),
-    ('Utilities', 'Electric, gas, water, internet, phone', '#FFA726'),
-    ('Health & Fitness', 'Medical expenses, pharmacy, insurance, gym membership', '#EF5350'),
-    ('Travel', 'Flights, hotels, vacation expenses', '#26C6DA'),
     ('Fees', 'Bank fees, interest charges, service fees', '#8D6E63'),
+    ('Food & Dining', 'Restaurants, groceries, food delivery', '#FF7043'),
+    ('Health', 'Medical expenses, pharmacy, insurance', '#EF5350'),
+    ('Hobby', 'Triathlon, kyudo, gym membership', '#4c783c'),
+    ('Other', 'Miscellaneous', '#78909C'),
     ('Pets', 'Pet care, grooming, supplies, insurance', '#13AFAD'),
-    ('Other', 'Miscellaneous expenses', '#78909C');
+    ('Reimbursable', 'Business trips', '#156873'),
+    ('Shopping', 'Retail purchases, online shopping', '#AB47BC'),
+    ('Transportation', 'Gas, public transit, rideshare, parking', '#42A5F5'),
+    ('Travel', 'Flights, hotels, vacation expenses', '#26C6DA'),
+    ('Utilities', 'Electric, gas, water, internet, phone', '#FFA726');
