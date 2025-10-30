@@ -8,6 +8,21 @@ This document defines the coding standards, workflows, and best practices for th
 - **Database**: PostgreSQL
 - **Development**: Docker Compose for local environment
 
+## AI Agent Configuration
+
+This project supports both single-purpose AI agents and multi-agent workflows. All agent configurations are stored in `.github/agents/`.
+
+### Agent Structure
+- **Individual Agents**: Specialized prompts for specific roles (backend, frontend, testing, review)
+- **Multi-Agent Workflows**: Coordinated workflows for complex tasks (feature development, bug fixes, releases)
+- **Configuration**: See `.github/agents/README.md` for detailed documentation
+
+### Agent Usage Guidelines
+- All agents must follow the TDD methodology and code quality standards defined in this document
+- Use specialized agents for focused expertise in specific areas
+- Use multi-agent workflows for complex, cross-functional tasks
+- Maintain clear handoffs and communication between agents in workflows
+
 ## Development Methodology
 
 ### Test-Driven Development (TDD)

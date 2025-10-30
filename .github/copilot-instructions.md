@@ -34,3 +34,10 @@ This is a full-stack expense tracking application that allows users to upload CS
 - Follow Go best practices for API development
 - Implement proper error handling
 - Use environment variables for configuration
+
+## Development Standards
+For comprehensive coding standards, workflows, and AI agent instructions, see:
+- **[Development Guidelines](development-guidelines.md)** - Complete TDD methodology, code quality standards, and workflows
+- **[AI Agent Configuration](agents/README.md)** - Multi-agent workflows and specialized agent prompts
+
+**Important**: All development work must follow the Test-Driven Development (TDD) practices and quality standards defined in the development guidelines.
