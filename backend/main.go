@@ -288,7 +288,7 @@ func uploadCSV(c *gin.Context) {
 		return
 	}
 
-	var transactions []Transaction
+	transactions := make([]Transaction, 0) // Initialize as empty slice instead of nil
 	fileName := header.Filename
 
 	// Skip header row if present
