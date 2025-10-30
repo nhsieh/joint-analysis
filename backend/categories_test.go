@@ -144,7 +144,7 @@ func TestCreateCategory(t *testing.T) {
 		}
 	})
 
-	t.Run("should create category with empty name (current behavior)", func(t *testing.T) {
+	t.Run("should fail with empty name", func(t *testing.T) {
 		// Clean data for this specific test
 		if err := cleanupTestData(); err != nil {
 			t.Fatalf("Failed to cleanup test data: %v", err)
@@ -160,21 +160,18 @@ func TestCreateCategory(t *testing.T) {
 
 		resp := makeRequest("POST", "/api/categories", bytes.NewBuffer(body))
 
-		// Test current behavior - may allow empty names
-		if resp.Code == http.StatusCreated {
-			var category Category
-			assertNoError(t, parseJSONResponse(resp, &category))
+		// Should now return 400 Bad Request for empty name
+		assertStatusCode(t, http.StatusBadRequest, resp.Code)
 
-			if category.Name != "" {
-				t.Errorf("Expected empty name, got '%s'", category.Name)
-			}
-		} else {
-			// Alternative: implementation may reject empty names
-			assertStatusCode(t, http.StatusBadRequest, resp.Code)
+		var errorResp map[string]interface{}
+		assertNoError(t, parseJSONResponse(resp, &errorResp))
+
+		if errorResp["error"] == nil {
+			t.Error("Expected error message in response")
 		}
 	})
 
-	t.Run("should return 500 for duplicate name (current behavior)", func(t *testing.T) {
+	t.Run("should return 409 for duplicate name", func(t *testing.T) {
 		// Create first category
 		_, err := createTestCategory("Shopping", "Retail purchases", "#33FF57")
 		assertNoError(t, err)
@@ -190,8 +187,8 @@ func TestCreateCategory(t *testing.T) {
 
 		resp := makeRequest("POST", "/api/categories", bytes.NewBuffer(body))
 
-		// Current implementation likely returns 500 for database constraint violations
-		assertStatusCode(t, http.StatusInternalServerError, resp.Code)
+		// Should now return 409 Conflict for duplicate name
+		assertStatusCode(t, http.StatusConflict, resp.Code)
 
 		var errorResp map[string]interface{}
 		assertNoError(t, parseJSONResponse(resp, &errorResp))
@@ -249,7 +246,7 @@ func TestUpdateCategory(t *testing.T) {
 		}
 	})
 
-	t.Run("should return 500 for non-existent category ID (current behavior)", func(t *testing.T) {
+	t.Run("should return 404 for non-existent category ID", func(t *testing.T) {
 		fakeID := "550e8400-e29b-41d4-a716-446655440000"
 
 		requestBody := map[string]interface{}{
@@ -261,8 +258,8 @@ func TestUpdateCategory(t *testing.T) {
 
 		resp := makeRequest("PUT", fmt.Sprintf("/api/categories/%s", fakeID), bytes.NewBuffer(body))
 
-		// Current implementation returns 500 for non-existent records
-		assertStatusCode(t, http.StatusInternalServerError, resp.Code)
+		// Should now return 404 Not Found for non-existent records
+		assertStatusCode(t, http.StatusNotFound, resp.Code)
 	})
 
 	t.Run("should fail with invalid UUID format", func(t *testing.T) {

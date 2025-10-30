@@ -129,7 +129,7 @@ func TestCreatePerson(t *testing.T) {
 		}
 	})
 
-	t.Run("should create person with empty name (current behavior)", func(t *testing.T) {
+	t.Run("should fail with empty name", func(t *testing.T) {
 		// Clean data for this specific test
 		if err := cleanupTestData(); err != nil {
 			t.Fatalf("Failed to cleanup test data: %v", err)
@@ -145,18 +145,18 @@ func TestCreatePerson(t *testing.T) {
 
 		resp := makeRequest("POST", "/api/people", bytes.NewBuffer(body))
 
-		// Current implementation allows empty names
-		assertStatusCode(t, http.StatusCreated, resp.Code)
+		// Should now return 400 Bad Request for empty name
+		assertStatusCode(t, http.StatusBadRequest, resp.Code)
 
-		var person Person
-		assertNoError(t, parseJSONResponse(resp, &person))
+		var errorResp map[string]interface{}
+		assertNoError(t, parseJSONResponse(resp, &errorResp))
 
-		if person.Name != "" {
-			t.Errorf("Expected empty name, got '%s'", person.Name)
+		if errorResp["error"] == nil {
+			t.Error("Expected error message in response")
 		}
 	})
 
-	t.Run("should create person with missing name (current behavior)", func(t *testing.T) {
+	t.Run("should fail with missing name", func(t *testing.T) {
 		// Clean data for this specific test
 		if err := cleanupTestData(); err != nil {
 			t.Fatalf("Failed to cleanup test data: %v", err)
@@ -171,11 +171,11 @@ func TestCreatePerson(t *testing.T) {
 
 		resp := makeRequest("POST", "/api/people", bytes.NewBuffer(body))
 
-		// Current implementation allows missing names (defaults to empty string)
-		assertStatusCode(t, http.StatusCreated, resp.Code)
+		// Should now return 400 Bad Request for missing name
+		assertStatusCode(t, http.StatusBadRequest, resp.Code)
 	})
 
-	t.Run("should return 500 for duplicate name (current behavior)", func(t *testing.T) {
+	t.Run("should return 409 for duplicate name", func(t *testing.T) {
 		// Create first person
 		_, err := createTestPerson("Charlie Brown", "charlie@example.com")
 		assertNoError(t, err)
@@ -191,8 +191,8 @@ func TestCreatePerson(t *testing.T) {
 
 		resp := makeRequest("POST", "/api/people", bytes.NewBuffer(body))
 
-		// Current implementation returns 500 for database constraint violations
-		assertStatusCode(t, http.StatusInternalServerError, resp.Code)
+		// Should now return 409 Conflict for duplicate name
+		assertStatusCode(t, http.StatusConflict, resp.Code)
 
 		var errorResp map[string]interface{}
 		assertNoError(t, parseJSONResponse(resp, &errorResp))

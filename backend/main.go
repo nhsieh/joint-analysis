@@ -8,7 +8,9 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"jointanalysis/db/generated"
@@ -65,6 +67,53 @@ type Total struct {
 var dbPool *pgxpool.Pool
 var queries *generated.Queries
 var categoryMapping *CategoryMapping
+
+// Validation functions
+
+// validateName validates that a name is not empty or just whitespace
+func validateName(name string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("name cannot be empty")
+	}
+	return nil
+}
+
+// validateHexColor validates that a color is in hex format (#RRGGBB)
+func validateHexColor(color string) error {
+	if color == "" {
+		return nil // Empty color is allowed
+	}
+
+	hexColorRegex := regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
+	if !hexColorRegex.MatchString(color) {
+		return fmt.Errorf("color must be in hex format (#RRGGBB)")
+	}
+	return nil
+}
+
+// handleDatabaseError converts database errors to appropriate HTTP responses
+func handleDatabaseError(err error) (statusCode int, message string) {
+	errorStr := err.Error()
+
+	// Check for unique constraint violations
+	if strings.Contains(errorStr, "duplicate key value violates unique constraint") {
+		if strings.Contains(errorStr, "people_name_key") {
+			return http.StatusConflict, "Person with this name already exists"
+		}
+		if strings.Contains(errorStr, "categories_name_key") {
+			return http.StatusConflict, "Category with this name already exists"
+		}
+		return http.StatusConflict, "Resource already exists"
+	}
+
+	// Check for not found errors
+	if strings.Contains(errorStr, "no rows in result set") {
+		return http.StatusNotFound, "Resource not found"
+	}
+
+	// Default to internal server error
+	return http.StatusInternalServerError, "Internal server error"
+}
 
 // CategoryMapping maps CSV categories to our predefined categories
 type CategoryMapping struct {
@@ -590,6 +639,12 @@ func createPerson(c *gin.Context) {
 		return
 	}
 
+	// Validate required fields
+	if err := validateName(personRequest.Name); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	// Create the parameters for the generated function
 	params := generated.CreatePersonParams{
 		Name: personRequest.Name,
@@ -603,7 +658,8 @@ func createPerson(c *gin.Context) {
 	dbPerson, err := queries.CreatePerson(context.Background(), params)
 	if err != nil {
 		log.Printf("Error creating person: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating person"})
+		statusCode, message := handleDatabaseError(err)
+		c.JSON(statusCode, gin.H{"error": message})
 		return
 	}
 
@@ -727,6 +783,20 @@ func createCategory(c *gin.Context) {
 		return
 	}
 
+	// Validate required fields
+	if err := validateName(category.Name); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate color format if provided
+	if category.Color != nil {
+		if err := validateHexColor(*category.Color); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	// Create parameters for the generated function
 	params := generated.CreateCategoryParams{
 		Name: category.Name,
@@ -743,7 +813,8 @@ func createCategory(c *gin.Context) {
 	dbCategory, err := queries.CreateCategory(context.Background(), params)
 	if err != nil {
 		log.Printf("Error creating category: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating category"})
+		statusCode, message := handleDatabaseError(err)
+		c.JSON(statusCode, gin.H{"error": message})
 		return
 	}
 
@@ -797,7 +868,8 @@ func updateCategory(c *gin.Context) {
 	dbCategory, err := queries.UpdateCategory(context.Background(), params)
 	if err != nil {
 		log.Printf("Error updating category: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating category"})
+		statusCode, message := handleDatabaseError(err)
+		c.JSON(statusCode, gin.H{"error": message})
 		return
 	}
 
