@@ -587,7 +587,8 @@ func assignTransaction(c *gin.Context) {
 	dbTransaction, err := queries.UpdateTransactionAssignment(context.Background(), params)
 	if err != nil {
 		log.Printf("Error updating transaction: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating transaction"})
+		statusCode, message := handleDatabaseError(err)
+		c.JSON(statusCode, gin.H{"error": message})
 		return
 	}
 
@@ -962,7 +963,8 @@ func updateTransactionCategory(c *gin.Context) {
 	dbTransaction, err := queries.UpdateTransactionCategory(context.Background(), params)
 	if err != nil {
 		log.Printf("Error updating transaction category: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating transaction category"})
+		statusCode, message := handleDatabaseError(err)
+		c.JSON(statusCode, gin.H{"error": message})
 		return
 	}
 
