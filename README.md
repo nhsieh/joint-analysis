@@ -9,6 +9,7 @@ A full-stack expense tracking application that allows users to upload CSV files 
 - **Transaction Assignment**: Assign each transaction to a specific person
 - **Automatic Totals**: Calculate and display total expenses per person
 - **Real-time Updates**: Live updates when assignments change
+- **Archive**: See totals and transactions in archive
 
 ## Tech Stack
 
@@ -21,22 +22,38 @@ A full-stack expense tracking application that allows users to upload CSV files 
 
 ```
 joint-analysis/
+├── AGENTS.md                 # AI agent configuration and instructions
+├── Makefile                  # Build automation and common tasks
+├── README.md                 # Project documentation
+├── docker-compose.yml       # Local development environment setup
 ├── frontend/                 # React application
 │   ├── src/
-│   │   ├── App.tsx          # Main React component
-│   │   ├── App.css          # Styling
-│   │   └── index.tsx        # Entry point
+│   │   └── App.tsx          # Main React component
 │   ├── public/
 │   ├── package.json
-│   ├── tsconfig.json
 │   └── Dockerfile
 ├── backend/                  # Go API server
-│   ├── main.go              # Main server file
-│   ├── go.mod               # Go modules
-│   ├── init.sql             # Database schema
-│   └── Dockerfile
-├── docker-compose.yml       # Local development setup
-└── README.md
+│   ├── main.go              # Main server file and API routes
+│   ├── models.go            # Data models and structures
+│   ├── people.go            # People management endpoints
+│   ├── transactions.go      # Transaction management endpoints
+│   ├── categories.go        # Category management endpoints
+│   ├── archives.go          # Archive functionality endpoints
+│   ├── totals.go            # Total calculation endpoints
+│   ├── utils.go             # Utility functions
+│   ├── migrations.go        # Database migration handling
+│   ├── go.mod               # Go module dependencies
+│   ├── *_test.go            # Test files for each module
+│   ├── db/                  # Database layer
+│   │   ├── query.sql        # SQL queries for SQLC
+│   │   ├── generated/       # SQLC generated code
+│   │   └── migrations/      # Database migration files (*.up.sql, *.down.sql)
+│   ├── docs/                # API documentation (Swagger)
+│   └── Dockerfile           # Backend container config
+├── docs/                     # Project documentation
+│   └── adr/                 # Architectural Decision Records
+│       └── *.md             # Decision documents
+└── references/              # Reference files and examples
 ```
 
 ## Quick Start
@@ -85,43 +102,13 @@ Transaction Date,Posted Date,Card No.,Description,Category,Debit,Credit
 - `Debit` - Debit amount
 - `Credit` - Credit amount
 
-## Development
-
-### Local Development without Docker
-
-#### Backend Setup
-```bash
-cd backend
-go mod download
-go run main.go
-```
-
-#### Frontend Setup
-```bash
-cd frontend
-npm install
-npm start
-```
-
-#### Database Setup
-Make sure PostgreSQL is running and create a database named `jointanalysis`.
-
-### Environment Variables
-
-- `DB_HOST` - Database host (default: postgres)
-- `DB_PORT` - Database port (default: 5432)
-- `DB_USER` - Database user (default: postgres)
-- `DB_PASSWORD` - Database password (default: password)
-- `DB_NAME` - Database name (default: jointanalysis)
-- `PORT` - Server port (default: 8080)
-- `REACT_APP_API_URL` - API URL for frontend (default: http://localhost:8081)
-
 ## Usage
 
 1. **Add People**: Use the "Add Person" section to create people who make purchases
 2. **Upload CSV**: Upload your expense CSV file using the upload section
 3. **Assign Transactions**: Use the dropdown in each transaction row to assign it to a person
 4. **View Totals**: The totals section automatically updates to show each person's total expenses
+5. **Archive**: Moves transactions and totals into archive
 
 ## Contributing
 
