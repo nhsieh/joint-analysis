@@ -15,6 +15,7 @@ This is a full-stack expense tracking application that allows users to upload CS
 - `backend/` - Golang API server
 - `docker-compose.yml` - Local development environment
 - `README.md` - Project documentation
+- `Makefile` - Useful commands
 
 ## Features
 - CSV file upload and parsing

@@ -382,6 +382,27 @@ func uploadCSV(c *gin.Context) {
 			params.CardNumber = pgtype.Text{String: cardNumber, Valid: true}
 		}
 
+		// Check for duplicate transaction before inserting
+		duplicateParams := generated.FindDuplicateTransactionParams{
+			Description:     description,
+			Amount:          amountNumeric,
+			TransactionDate: params.TransactionDate,
+			PostedDate:      params.PostedDate,
+			CardNumber:      params.CardNumber,
+		}
+
+		count, err := queries.FindDuplicateTransaction(context.Background(), duplicateParams)
+		if err != nil {
+			log.Printf("Error checking for duplicate transaction: %v", err)
+			continue
+		}
+
+		// If duplicate exists, skip this transaction
+		if count > 0 {
+			log.Printf("Skipping duplicate transaction: %s, amount: %f", description, amount)
+			continue
+		}
+
 		_, err = queries.CreateTransaction(context.Background(), params)
 		if err != nil {
 			log.Printf("Error inserting transaction: %v", err)

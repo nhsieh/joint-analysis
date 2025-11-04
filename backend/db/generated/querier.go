@@ -19,6 +19,7 @@ type Querier interface {
 	DeleteCategory(ctx context.Context, id pgtype.UUID) error
 	DeletePerson(ctx context.Context, id pgtype.UUID) error
 	DeleteTransaction(ctx context.Context, id pgtype.UUID) error
+	FindDuplicateTransaction(ctx context.Context, arg FindDuplicateTransactionParams) (int64, error)
 	// Categories queries
 	GetCategories(ctx context.Context) ([]Category, error)
 	GetCategoryByID(ctx context.Context, id pgtype.UUID) (Category, error)

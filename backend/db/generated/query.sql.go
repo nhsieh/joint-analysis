@@ -180,6 +180,37 @@ func (q *Queries) DeleteTransaction(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const findDuplicateTransaction = `-- name: FindDuplicateTransaction :one
+SELECT COUNT(*) 
+FROM transactions 
+WHERE description = $1 
+  AND amount = $2 
+  AND transaction_date = $3 
+  AND posted_date = $4 
+  AND card_number = $5
+`
+
+type FindDuplicateTransactionParams struct {
+	Description     string         `json:"description"`
+	Amount          pgtype.Numeric `json:"amount"`
+	TransactionDate pgtype.Date    `json:"transaction_date"`
+	PostedDate      pgtype.Date    `json:"posted_date"`
+	CardNumber      pgtype.Text    `json:"card_number"`
+}
+
+func (q *Queries) FindDuplicateTransaction(ctx context.Context, arg FindDuplicateTransactionParams) (int64, error) {
+	row := q.db.QueryRow(ctx, findDuplicateTransaction,
+		arg.Description,
+		arg.Amount,
+		arg.TransactionDate,
+		arg.PostedDate,
+		arg.CardNumber,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getCategories = `-- name: GetCategories :many
 SELECT id, name, description, color, created_at, updated_at
 FROM categories

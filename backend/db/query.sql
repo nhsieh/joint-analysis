@@ -98,6 +98,15 @@ RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
           transaction_date, posted_date, card_number, category_id,
           created_at, updated_at;
 
+-- name: FindDuplicateTransaction :one
+SELECT COUNT(*)
+FROM transactions
+WHERE description = $1
+  AND amount = $2
+  AND transaction_date = $3
+  AND posted_date = $4
+  AND card_number = $5;
+
 -- name: UpdateTransactionAssignment :one
 UPDATE transactions
 SET assigned_to = $2, updated_at = CURRENT_TIMESTAMP

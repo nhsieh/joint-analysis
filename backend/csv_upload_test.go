@@ -323,4 +323,71 @@ func TestUploadCSV(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("should prevent duplicate transactions", func(t *testing.T) {
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		csvContent := `Transaction Date,Posted Date,Card No.,Description,Category,Debit,Credit
+2025-10-17,2025-10-20,1111,DUPLICATE TEST TRANSACTION,Gas/Automotive,25.00,
+2025-10-20,2025-10-20,2222,UNIQUE TRANSACTION,Other Travel,30.00,`
+
+		// Upload CSV first time
+		body, contentType := createCSVFile(csvContent, "duplicate_test.csv")
+
+		req := httptest.NewRequest("POST", "/api/upload-csv", body)
+		req.Header.Set("Content-Type", contentType)
+		w := httptest.NewRecorder()
+
+		testRouter.ServeHTTP(w, req)
+
+		assertStatusCode(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		assertNoError(t, parseJSONResponse(w, &response))
+
+		transactions, ok := response["transactions"].([]interface{})
+		if !ok {
+			t.Fatalf("Expected transactions to be an array")
+		}
+
+		if len(transactions) != 2 {
+			t.Errorf("Expected 2 transactions on first upload, got %d", len(transactions))
+		}
+
+		// Upload same CSV second time - should prevent duplicates
+		body2, contentType2 := createCSVFile(csvContent, "duplicate_test.csv")
+
+		req2 := httptest.NewRequest("POST", "/api/upload-csv", body2)
+		req2.Header.Set("Content-Type", contentType2)
+		w2 := httptest.NewRecorder()
+
+		testRouter.ServeHTTP(w2, req2)
+
+		assertStatusCode(t, http.StatusOK, w2.Code)
+
+		var response2 map[string]interface{}
+		assertNoError(t, parseJSONResponse(w2, &response2))
+
+		transactions2, ok := response2["transactions"].([]interface{})
+		if !ok {
+			t.Fatalf("Expected transactions to be an array")
+		}
+
+		if len(transactions2) != 0 {
+			t.Errorf("Expected 0 new transactions on duplicate upload, got %d", len(transactions2))
+		}
+
+		// Verify total count in database is still 2
+		resp := makeRequest("GET", "/api/transactions", nil)
+		assertStatusCode(t, http.StatusOK, resp.Code)
+
+		var dbTransactions []Transaction
+		assertNoError(t, parseJSONResponse(resp, &dbTransactions))
+
+		if len(dbTransactions) != 2 {
+			t.Errorf("Expected total of 2 transactions in database after duplicate upload, got %d", len(dbTransactions))
+		}
+	})
 }
