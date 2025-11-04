@@ -313,6 +313,8 @@ const Dashboard: React.FC = () => {
         const dateB = b.transaction_date ? new Date(b.transaction_date + 'T12:00:00').getTime() : 0;
         return dateA - dateB;
       },
+      defaultSortOrder: 'descend',
+      sortDirections: ['ascend', 'descend'],
       width: 100,
     },
     {
