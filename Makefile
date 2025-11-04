@@ -1,6 +1,6 @@
 # Joint Analysis - Expense Tracker Makefile
 
-.PHONY: help build up down restart rebuild-backend restart-backend logs logs-backend clean generate-db
+.PHONY: help build up down restart rebuild-backend restart-backend logs logs-backend clean generate-db generate-docs docs-serve
 
 # Default target
 help:
@@ -16,6 +16,8 @@ help:
 	@echo "  logs             - Show logs for all services"
 	@echo "  logs-backend     - Show logs for backend service only"
 	@echo "  generate-db      - Generate database code using sqlc"
+	@echo "  generate-docs    - Generate API documentation using Swagger"
+	@echo "  docs-serve       - Generate and serve API documentation locally"
 	@echo "  clean            - Remove all containers and volumes"
 
 test:
@@ -41,13 +43,17 @@ down:
 restart:
 	docker-compose restart
 
+# Rebuild only the backend container
+rebuild-backend:
+	docker-compose build backend
+
 # Rebuild only the frontend container
 rebuild-frontend:
 	docker-compose build frontend
 
 # Restart only the backend service
 restart-backend:
-	docker-compose up --build -d backend
+	docker-compose up -d backend
 
 # Restart only the frontend service
 restart-frontend:
@@ -87,3 +93,20 @@ dev-backend: rebuild-backend restart-backend logs-backend
 generate-db:
 	pushd backend/db && sqlc generate && popd
 	@echo "Database code generated successfully!"
+
+# Generate API documentation using Swagger
+generate-docs:
+	@echo "Generating API documentation..."
+	@if ! command -v swag &> /dev/null; then \
+		echo "Installing swag CLI tool..."; \
+		go install github.com/swaggo/swag/cmd/swag@v1.8.12; \
+	fi
+	pushd backend && swag init && popd
+	@echo "API documentation generated successfully!"
+	@echo "Documentation will be available at http://localhost:8081/swagger/index.html when the server is running"
+
+# Generate and serve API documentation locally (without starting full app)
+docs-serve: generate-docs
+	@echo "Starting documentation server..."
+	@echo "Open http://localhost:8080/swagger/index.html in your browser"
+	pushd backend && go run main.go & popd

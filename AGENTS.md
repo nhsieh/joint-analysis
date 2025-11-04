@@ -24,6 +24,15 @@ This is a full-stack expense tracking application that allows users to upload CS
 - Total calculation per person
 - REST API for data management
 - PostgreSQL database for transaction storage
+- **Automated API documentation** with Swagger/OpenAPI
+
+## API Documentation
+- **Interactive Swagger UI**: Available at http://localhost:8081/swagger/index.html when running
+- **Auto-generated**: Documentation is generated from code annotations using swaggo/swag
+- **Always up-to-date**: Regenerated from actual API endpoints and models
+- **Commands**:
+  - `make generate-docs` - Generate Swagger documentation from code
+- **Documentation files**: `backend/docs/` for generated Swagger files
 
 ## Development Instructions
 1. Use Docker Compose for local development: `docker-compose up`
@@ -36,6 +45,8 @@ This is a full-stack expense tracking application that allows users to upload CS
 - Follow Go best practices for API development
 - Implement proper error handling
 - Use environment variables for configuration
+- **API Documentation**: Add Swagger annotations to all new API endpoints
+- **Documentation Updates**: Run `make generate-docs` after API changes to keep documentation current
 
 ## Development Standards
 For comprehensive coding standards, workflows, and AI agent instructions, see:

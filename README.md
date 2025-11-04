@@ -85,15 +85,6 @@ Transaction Date,Posted Date,Card No.,Description,Category,Debit,Credit
 - `Debit` - Debit amount
 - `Credit` - Credit amount
 
-## API Endpoints
-
-- `POST /api/upload-csv` - Upload CSV file
-- `GET /api/transactions` - Get all transactions
-- `PUT /api/transactions/:id/assign` - Assign transaction to person
-- `GET /api/people` - Get all people
-- `POST /api/people` - Create new person
-- `GET /api/totals` - Get totals by person
-
 ## Development
 
 ### Local Development without Docker
