@@ -55,6 +55,10 @@ ADD CONSTRAINT fk_transactions_category_id
 FOREIGN KEY (category_id) REFERENCES categories(id)
 ON UPDATE CASCADE ON DELETE SET NULL;
 
+-- Insert default joint user
+INSERT INTO people (name, email) VALUES
+    ('Joint', 'joint@example.com');
+
 -- Insert default categories
 INSERT INTO categories (name, description, color) VALUES
     ('Entertainment', 'Movies, concerts, streaming services', '#66BB6A'),

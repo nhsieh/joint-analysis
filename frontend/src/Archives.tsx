@@ -129,7 +129,11 @@ const Archives: React.FC = () => {
       key: 'person_totals',
       render: (personTotals: PersonTotal[]) => (
         <div>
-          {personTotals?.map(pt => (
+          {personTotals?.sort((a, b) => {
+            if (a.name === 'Joint') return -1;
+            if (b.name === 'Joint') return 1;
+            return a.name.localeCompare(b.name);
+          }).map(pt => (
             <div key={pt.name} style={{ fontSize: '12px' }}>
               {pt.name}: ${pt.total.toFixed(2)}
             </div>
@@ -288,7 +292,11 @@ const Archives: React.FC = () => {
               </Col>
               <Col span={6}>
                 <Card size="small" title="Person Totals">
-                  {selectedArchive.person_totals?.map(pt => (
+                  {selectedArchive.person_totals?.sort((a, b) => {
+                    if (a.name === 'Joint') return -1;
+                    if (b.name === 'Joint') return 1;
+                    return a.name.localeCompare(b.name);
+                  }).map(pt => (
                     <div key={pt.name} style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Text>{pt.name}:</Text>
                       <Text strong>${pt.total.toFixed(2)}</Text>
