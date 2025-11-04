@@ -107,32 +107,25 @@ func (q *Queries) CreateArchive(ctx context.Context, arg CreateArchiveParams) (A
 }
 
 const createArchivePersonTotal = `-- name: CreateArchivePersonTotal :one
-INSERT INTO archive_person_totals (archive_id, person_id, person_name, total_amount)
-VALUES ($1, $2, $3, $4)
-RETURNING id, archive_id, person_id, person_name, total_amount, created_at, updated_at
+INSERT INTO archive_person_totals (archive_id, person_id, total_amount)
+VALUES ($1, $2, $3)
+RETURNING id, archive_id, person_id, total_amount, created_at, updated_at
 `
 
 type CreateArchivePersonTotalParams struct {
 	ArchiveID   pgtype.UUID    `json:"archive_id"`
 	PersonID    pgtype.UUID    `json:"person_id"`
-	PersonName  string         `json:"person_name"`
 	TotalAmount pgtype.Numeric `json:"total_amount"`
 }
 
 // Archive person totals queries
 func (q *Queries) CreateArchivePersonTotal(ctx context.Context, arg CreateArchivePersonTotalParams) (ArchivePersonTotal, error) {
-	row := q.db.QueryRow(ctx, createArchivePersonTotal,
-		arg.ArchiveID,
-		arg.PersonID,
-		arg.PersonName,
-		arg.TotalAmount,
-	)
+	row := q.db.QueryRow(ctx, createArchivePersonTotal, arg.ArchiveID, arg.PersonID, arg.TotalAmount)
 	var i ArchivePersonTotal
 	err := row.Scan(
 		&i.ID,
 		&i.ArchiveID,
 		&i.PersonID,
-		&i.PersonName,
 		&i.TotalAmount,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -475,21 +468,32 @@ func (q *Queries) GetArchiveByID(ctx context.Context, id pgtype.UUID) (Archive, 
 }
 
 const getArchivePersonTotals = `-- name: GetArchivePersonTotals :many
-SELECT id, archive_id, person_id, person_name, total_amount, created_at, updated_at
-FROM archive_person_totals
-WHERE archive_id = $1
-ORDER BY person_name
+SELECT apt.id, apt.archive_id, apt.person_id, p.name as person_name, apt.total_amount, apt.created_at, apt.updated_at
+FROM archive_person_totals apt
+JOIN people p ON apt.person_id = p.id
+WHERE apt.archive_id = $1
+ORDER BY p.name
 `
 
-func (q *Queries) GetArchivePersonTotals(ctx context.Context, archiveID pgtype.UUID) ([]ArchivePersonTotal, error) {
+type GetArchivePersonTotalsRow struct {
+	ID          pgtype.UUID      `json:"id"`
+	ArchiveID   pgtype.UUID      `json:"archive_id"`
+	PersonID    pgtype.UUID      `json:"person_id"`
+	PersonName  string           `json:"person_name"`
+	TotalAmount pgtype.Numeric   `json:"total_amount"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetArchivePersonTotals(ctx context.Context, archiveID pgtype.UUID) ([]GetArchivePersonTotalsRow, error) {
 	rows, err := q.db.Query(ctx, getArchivePersonTotals, archiveID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ArchivePersonTotal
+	var items []GetArchivePersonTotalsRow
 	for rows.Next() {
-		var i ArchivePersonTotal
+		var i GetArchivePersonTotalsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ArchiveID,

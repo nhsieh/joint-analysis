@@ -229,15 +229,16 @@ ORDER BY p.name;
 
 -- Archive person totals queries
 -- name: CreateArchivePersonTotal :one
-INSERT INTO archive_person_totals (archive_id, person_id, person_name, total_amount)
-VALUES ($1, $2, $3, $4)
-RETURNING id, archive_id, person_id, person_name, total_amount, created_at, updated_at;
+INSERT INTO archive_person_totals (archive_id, person_id, total_amount)
+VALUES ($1, $2, $3)
+RETURNING id, archive_id, person_id, total_amount, created_at, updated_at;
 
 -- name: GetArchivePersonTotals :many
-SELECT id, archive_id, person_id, person_name, total_amount, created_at, updated_at
-FROM archive_person_totals
-WHERE archive_id = $1
-ORDER BY person_name;
+SELECT apt.id, apt.archive_id, apt.person_id, p.name as person_name, apt.total_amount, apt.created_at, apt.updated_at
+FROM archive_person_totals apt
+JOIN people p ON apt.person_id = p.id
+WHERE apt.archive_id = $1
+ORDER BY p.name;
 
 -- name: DeleteArchivePersonTotals :exec
 DELETE FROM archive_person_totals

@@ -39,7 +39,6 @@ type ArchivePersonTotal struct {
 	ID          pgtype.UUID      `json:"id"`
 	ArchiveID   pgtype.UUID      `json:"archive_id"`
 	PersonID    pgtype.UUID      `json:"person_id"`
-	PersonName  string           `json:"person_name"`
 	TotalAmount pgtype.Numeric   `json:"total_amount"`
 	CreatedAt   pgtype.Timestamp `json:"created_at"`
 	UpdatedAt   pgtype.Timestamp `json:"updated_at"`

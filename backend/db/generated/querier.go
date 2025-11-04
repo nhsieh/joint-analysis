@@ -31,7 +31,7 @@ type Querier interface {
 	GetActiveTransactionTotals(ctx context.Context) ([]GetActiveTransactionTotalsRow, error)
 	GetActiveTransactions(ctx context.Context) ([]GetActiveTransactionsRow, error)
 	GetArchiveByID(ctx context.Context, id pgtype.UUID) (Archive, error)
-	GetArchivePersonTotals(ctx context.Context, archiveID pgtype.UUID) ([]ArchivePersonTotal, error)
+	GetArchivePersonTotals(ctx context.Context, archiveID pgtype.UUID) ([]GetArchivePersonTotalsRow, error)
 	GetArchivedTransactions(ctx context.Context, archiveID pgtype.UUID) ([]GetArchivedTransactionsRow, error)
 	GetArchives(ctx context.Context) ([]Archive, error)
 	// Categories queries

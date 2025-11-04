@@ -1176,7 +1176,6 @@ func createArchive(c *gin.Context) {
 		_, err = queries.CreateArchivePersonTotal(context.Background(), generated.CreateArchivePersonTotalParams{
 			ArchiveID:   archiveID,
 			PersonID:    person.ID,
-			PersonName:  person.Name,
 			TotalAmount: totalNumeric,
 		})
 		if err != nil {
@@ -1308,14 +1307,17 @@ func convertTransactionFromArchivedRow(t generated.GetArchivedTransactionsRow) T
 		transaction.Amount = amountValue.Float64
 	}
 
-	// Convert assigned_to array
-	var assignedTo []string
-	for _, personUUID := range t.AssignedTo {
-		if personUUID.Valid {
-			assignedTo = append(assignedTo, uuid.UUID(personUUID.Bytes).String())
+	// Convert assigned_to array from UUIDs to names
+	if len(t.AssignedTo) > 0 {
+		names, err := convertUUIDArrayToNames(t.AssignedTo)
+		if err != nil {
+			log.Printf("Error converting UUIDs to names: %v", err)
+		} else {
+			transaction.AssignedTo = names
 		}
+	} else {
+		transaction.AssignedTo = []string{}
 	}
-	transaction.AssignedTo = assignedTo
 
 	// Convert optional fields
 	if t.DateUploaded.Valid {
