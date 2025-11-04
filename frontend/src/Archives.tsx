@@ -100,12 +100,6 @@ const Archives: React.FC = () => {
 
   const archiveColumns: ColumnsType<Archive> = [
     {
-      title: 'Archive Name',
-      dataIndex: 'name',
-      key: 'name',
-      render: (text: string) => <Text strong>{text}</Text>,
-    },
-    {
       title: 'Description',
       dataIndex: 'description',
       key: 'description',
@@ -162,6 +156,19 @@ const Archives: React.FC = () => {
 
   const transactionColumns: ColumnsType<Transaction> = [
     {
+      title: 'Date',
+      dataIndex: 'transaction_date',
+      key: 'transaction_date',
+      render: (date: string) => date ? new Date(date).toLocaleDateString() : '-',
+      sorter: (a, b) => {
+        const dateA = a.transaction_date ? new Date(a.transaction_date).getTime() : 0;
+        const dateB = b.transaction_date ? new Date(b.transaction_date).getTime() : 0;
+        return dateB - dateA;
+      },
+      defaultSortOrder: 'ascend',
+      width: '15%',
+    },
+    {
       title: 'Description',
       dataIndex: 'description',
       key: 'description',
@@ -176,17 +183,10 @@ const Archives: React.FC = () => {
       width: '20%',
     },
     {
-      title: 'Date',
-      dataIndex: 'transaction_date',
-      key: 'transaction_date',
-      render: (date: string) => date ? new Date(date).toLocaleDateString() : '-',
-      width: '15%',
-    },
-    {
       title: 'Assigned To',
       dataIndex: 'assigned_to',
       key: 'assigned_to',
-      render: (assignedTo: string[]) => assignedTo?.length || 0,
+      render: (assignedTo: string[]) => assignedTo?.join(', ') || 'Unassigned',
       width: '25%',
     },
   ];
