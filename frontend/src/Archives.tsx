@@ -23,7 +23,6 @@ import { ColumnsType } from 'antd/es/table';
 
 interface Archive {
   id: string;
-  name: string;
   description?: string;
   archived_at: string;
   transaction_count: number;
@@ -258,7 +257,7 @@ const Archives: React.FC = () => {
 
       {/* Archive Details Modal */}
       <Modal
-        title={selectedArchive ? `${selectedArchive.name} - Transactions` : 'Archive Details'}
+        title={selectedArchive ? (selectedArchive.description || 'Archive Details') : 'Archive Details'}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}

@@ -69,7 +69,6 @@ type Total struct {
 // Archive represents an archived collection of transactions
 type Archive struct {
 	ID               string        `json:"id"`
-	Name             string        `json:"name"`
 	Description      *string       `json:"description"`
 	ArchivedAt       time.Time     `json:"archived_at"`
 	TransactionCount int           `json:"transaction_count"`
@@ -81,7 +80,6 @@ type Archive struct {
 
 // ArchiveRequest represents the request structure for creating an archive
 type ArchiveRequest struct {
-	Name        string `json:"name" binding:"required"`
 	Description string `json:"description"`
 }
 
@@ -1083,12 +1081,6 @@ func createArchive(c *gin.Context) {
 		return
 	}
 
-	// Validate name
-	if err := validateName(request.Name); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
 	// Get all active transactions to archive
 	activeTransactions, err := queries.GetActiveTransactions(context.Background())
 	if err != nil {
@@ -1124,7 +1116,6 @@ func createArchive(c *gin.Context) {
 	}
 
 	params := generated.CreateArchiveParams{
-		Name:             request.Name,
 		Description:      descText,
 		TransactionCount: int32(len(activeTransactions)),
 		TotalAmount:      pgtype.Numeric{},
@@ -1192,7 +1183,6 @@ func createArchive(c *gin.Context) {
 	// Convert and return the archive
 	archiveResponse := Archive{
 		ID:               uuid.UUID(archive.ID.Bytes).String(),
-		Name:             archive.Name,
 		ArchivedAt:       archive.ArchivedAt.Time,
 		TransactionCount: int(archive.TransactionCount),
 		PersonTotals:     personTotals,
@@ -1238,7 +1228,6 @@ func getArchives(c *gin.Context) {
 
 		archive := Archive{
 			ID:               uuid.UUID(dbArchive.ID.Bytes).String(),
-			Name:             dbArchive.Name,
 			ArchivedAt:       dbArchive.ArchivedAt.Time,
 			TransactionCount: int(dbArchive.TransactionCount),
 			PersonTotals:     personTotals,

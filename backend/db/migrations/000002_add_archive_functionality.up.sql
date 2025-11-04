@@ -2,7 +2,6 @@
 -- Create archives table to store archive metadata
 CREATE TABLE archives (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
     description TEXT,
     archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     transaction_count INTEGER NOT NULL DEFAULT 0,

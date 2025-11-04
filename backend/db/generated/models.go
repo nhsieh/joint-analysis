@@ -26,7 +26,6 @@ type ActiveTransaction struct {
 
 type Archive struct {
 	ID               pgtype.UUID      `json:"id"`
-	Name             string           `json:"name"`
 	Description      pgtype.Text      `json:"description"`
 	ArchivedAt       pgtype.Timestamp `json:"archived_at"`
 	TransactionCount int32            `json:"transaction_count"`

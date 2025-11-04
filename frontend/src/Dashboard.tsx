@@ -271,9 +271,7 @@ const Dashboard: React.FC = () => {
 
     try {
       setArchiving(true);
-      const archiveName = `Archive ${new Date().toLocaleDateString()}`;
       await axios.post(`${API_URL}/api/archives`, {
-        name: archiveName,
         description: `Archived on ${new Date().toLocaleString()}`
       });
       message.success('Transactions archived successfully!');

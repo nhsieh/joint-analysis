@@ -171,17 +171,17 @@ DELETE FROM transactions;
 
 -- Archive queries
 -- name: CreateArchive :one
-INSERT INTO archives (name, description, transaction_count, total_amount)
-VALUES ($1, $2, $3, $4)
-RETURNING id, name, description, archived_at, transaction_count, total_amount, created_at, updated_at;
+INSERT INTO archives (description, transaction_count, total_amount)
+VALUES ($1, $2, $3)
+RETURNING id, description, archived_at, transaction_count, total_amount, created_at, updated_at;
 
 -- name: GetArchives :many
-SELECT id, name, description, archived_at, transaction_count, total_amount, created_at, updated_at
+SELECT id, description, archived_at, transaction_count, total_amount, created_at, updated_at
 FROM archives
 ORDER BY archived_at DESC;
 
 -- name: GetArchiveByID :one
-SELECT id, name, description, archived_at, transaction_count, total_amount, created_at, updated_at
+SELECT id, description, archived_at, transaction_count, total_amount, created_at, updated_at
 FROM archives
 WHERE id = $1;
 
@@ -189,7 +189,7 @@ WHERE id = $1;
 UPDATE archives
 SET transaction_count = $2, total_amount = $3, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, name, description, archived_at, transaction_count, total_amount, created_at, updated_at;
+RETURNING id, description, archived_at, transaction_count, total_amount, created_at, updated_at;
 
 -- name: DeleteArchive :exec
 DELETE FROM archives

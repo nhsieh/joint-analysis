@@ -72,13 +72,12 @@ func (q *Queries) ArchiveTransactions(ctx context.Context, archiveID pgtype.UUID
 }
 
 const createArchive = `-- name: CreateArchive :one
-INSERT INTO archives (name, description, transaction_count, total_amount)
-VALUES ($1, $2, $3, $4)
-RETURNING id, name, description, archived_at, transaction_count, total_amount, created_at, updated_at
+INSERT INTO archives (description, transaction_count, total_amount)
+VALUES ($1, $2, $3)
+RETURNING id, description, archived_at, transaction_count, total_amount, created_at, updated_at
 `
 
 type CreateArchiveParams struct {
-	Name             string         `json:"name"`
 	Description      pgtype.Text    `json:"description"`
 	TransactionCount int32          `json:"transaction_count"`
 	TotalAmount      pgtype.Numeric `json:"total_amount"`
@@ -86,16 +85,10 @@ type CreateArchiveParams struct {
 
 // Archive queries
 func (q *Queries) CreateArchive(ctx context.Context, arg CreateArchiveParams) (Archive, error) {
-	row := q.db.QueryRow(ctx, createArchive,
-		arg.Name,
-		arg.Description,
-		arg.TransactionCount,
-		arg.TotalAmount,
-	)
+	row := q.db.QueryRow(ctx, createArchive, arg.Description, arg.TransactionCount, arg.TotalAmount)
 	var i Archive
 	err := row.Scan(
 		&i.ID,
-		&i.Name,
 		&i.Description,
 		&i.ArchivedAt,
 		&i.TransactionCount,
@@ -446,7 +439,7 @@ func (q *Queries) GetActiveTransactions(ctx context.Context) ([]GetActiveTransac
 }
 
 const getArchiveByID = `-- name: GetArchiveByID :one
-SELECT id, name, description, archived_at, transaction_count, total_amount, created_at, updated_at
+SELECT id, description, archived_at, transaction_count, total_amount, created_at, updated_at
 FROM archives
 WHERE id = $1
 `
@@ -456,7 +449,6 @@ func (q *Queries) GetArchiveByID(ctx context.Context, id pgtype.UUID) (Archive, 
 	var i Archive
 	err := row.Scan(
 		&i.ID,
-		&i.Name,
 		&i.Description,
 		&i.ArchivedAt,
 		&i.TransactionCount,
@@ -573,7 +565,7 @@ func (q *Queries) GetArchivedTransactions(ctx context.Context, archiveID pgtype.
 }
 
 const getArchives = `-- name: GetArchives :many
-SELECT id, name, description, archived_at, transaction_count, total_amount, created_at, updated_at
+SELECT id, description, archived_at, transaction_count, total_amount, created_at, updated_at
 FROM archives
 ORDER BY archived_at DESC
 `
@@ -589,7 +581,6 @@ func (q *Queries) GetArchives(ctx context.Context) ([]Archive, error) {
 		var i Archive
 		if err := rows.Scan(
 			&i.ID,
-			&i.Name,
 			&i.Description,
 			&i.ArchivedAt,
 			&i.TransactionCount,
@@ -1099,7 +1090,7 @@ const updateArchiveTotals = `-- name: UpdateArchiveTotals :one
 UPDATE archives
 SET transaction_count = $2, total_amount = $3, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, name, description, archived_at, transaction_count, total_amount, created_at, updated_at
+RETURNING id, description, archived_at, transaction_count, total_amount, created_at, updated_at
 `
 
 type UpdateArchiveTotalsParams struct {
@@ -1113,7 +1104,6 @@ func (q *Queries) UpdateArchiveTotals(ctx context.Context, arg UpdateArchiveTota
 	var i Archive
 	err := row.Scan(
 		&i.ID,
-		&i.Name,
 		&i.Description,
 		&i.ArchivedAt,
 		&i.TransactionCount,
