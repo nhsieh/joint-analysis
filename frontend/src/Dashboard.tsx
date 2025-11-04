@@ -261,6 +261,18 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const deleteTransaction = async (transactionId: string) => {
+    try {
+      await axios.delete(`${API_URL}/api/transactions/${transactionId}`);
+      message.success('Transaction deleted successfully!');
+      fetchTransactions();
+      fetchTotals();
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+      message.error('Error deleting transaction');
+    }
+  };
+
   const updateTransactionCategory = async (transactionId: string, categoryId: string | null) => {
     try {
       await axios.put(`${API_URL}/api/transactions/${transactionId}/category`, {
@@ -420,6 +432,23 @@ const Dashboard: React.FC = () => {
         </div>
       ),
       width: 200,
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_: any, record: Transaction) => (
+        <Button
+          type="text"
+          danger
+          size="small"
+          icon={<DeleteOutlined />}
+          onClick={() => {
+            deleteTransaction(record.id);
+          }}
+          title="Delete transaction"
+        />
+      ),
+      width: 80,
     },
   ];
 

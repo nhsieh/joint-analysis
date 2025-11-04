@@ -253,6 +253,7 @@ func main() {
 	r.POST("/api/upload-csv", uploadCSV)
 	r.GET("/api/transactions", getTransactions)
 	r.DELETE("/api/transactions", clearAllTransactions)
+	r.DELETE("/api/transactions/:id", deleteTransaction)
 	r.PUT("/api/transactions/:id/assign", assignTransaction)
 	r.GET("/api/people", getPeople)
 	r.POST("/api/people", createPerson)
@@ -616,6 +617,35 @@ func assignTransaction(c *gin.Context) {
 	// Convert and return the updated transaction
 	transaction := convertTransactionFromUpdateRow(dbTransaction)
 	c.JSON(http.StatusOK, transaction)
+}
+
+func deleteTransaction(c *gin.Context) {
+	transactionID := c.Param("id")
+	if transactionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Transaction ID is required"})
+		return
+	}
+
+	// Parse UUID
+	transactionUUID, err := uuid.Parse(transactionID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid transaction ID format"})
+		return
+	}
+
+	// Convert to pgtype.UUID
+	var pgUUID pgtype.UUID
+	pgUUID.Bytes = transactionUUID
+	pgUUID.Valid = true
+
+	err = queries.DeleteTransaction(context.Background(), pgUUID)
+	if err != nil {
+		log.Printf("Error deleting transaction: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting transaction"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Transaction deleted successfully"})
 }
 
 func clearAllTransactions(c *gin.Context) {
