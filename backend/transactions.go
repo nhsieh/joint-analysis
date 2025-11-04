@@ -19,12 +19,12 @@ import (
 // Transaction handler functions
 
 // @Summary Upload CSV file
-// @Description Upload a CSV file containing transaction data
+// @Description Upload a CSV file containing transaction data. Returns the successfully imported transactions and count of skipped rows.
 // @Tags transactions
 // @Accept multipart/form-data
 // @Produce json
 // @Param file formData file true "CSV file to upload"
-// @Success 200 {object} map[string]interface{} "Upload successful"
+// @Success 200 {object} map[string]interface{} "Upload successful - returns message, transactions array, and skipped_rows count"
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/upload-csv [post]
@@ -45,6 +45,7 @@ func uploadCSV(c *gin.Context) {
 
 	transactions := make([]Transaction, 0) // Initialize as empty slice instead of nil
 	fileName := header.Filename
+	skippedRows := 0
 
 	// Skip header row if present
 	start := 0
@@ -55,6 +56,7 @@ func uploadCSV(c *gin.Context) {
 	for i := start; i < len(records); i++ {
 		record := records[i]
 		if len(record) < 7 { // Need exactly 7 columns for CSV format: Transaction Date,Posted Date,Card No.,Description,Category,Debit,Credit
+			skippedRows++
 			continue
 		}
 
@@ -75,10 +77,12 @@ func uploadCSV(c *gin.Context) {
 		} else if record[6] != "" {
 			amount, err = strconv.ParseFloat(record[6], 64)
 		} else {
+			skippedRows++
 			continue // Skip if no amount found
 		}
 
 		if err != nil {
+			skippedRows++
 			continue
 		}
 
@@ -106,6 +110,7 @@ func uploadCSV(c *gin.Context) {
 		var amountNumeric pgtype.Numeric
 		if err := amountNumeric.Scan(amountStr); err != nil {
 			log.Printf("Error converting amount to numeric: %v", err)
+			skippedRows++
 			continue
 		}
 
@@ -149,18 +154,21 @@ func uploadCSV(c *gin.Context) {
 		count, err := queries.FindDuplicateTransaction(context.Background(), duplicateParams)
 		if err != nil {
 			log.Printf("Error checking for duplicate transaction: %v", err)
+			skippedRows++
 			continue
 		}
 
 		// If duplicate exists, skip this transaction
 		if count > 0 {
 			log.Printf("Skipping duplicate transaction: %s, amount: %f", description, amount)
+			skippedRows++
 			continue
 		}
 
 		_, err = queries.CreateTransaction(context.Background(), params)
 		if err != nil {
 			log.Printf("Error inserting transaction: %v", err)
+			skippedRows++
 			continue
 		}
 
@@ -170,6 +178,7 @@ func uploadCSV(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message":      "CSV uploaded successfully",
 		"transactions": transactions,
+		"skipped_rows": skippedRows,
 	})
 }
 

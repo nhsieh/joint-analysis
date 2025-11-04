@@ -558,14 +558,14 @@ paths:
     put:
       consumes:
       - application/json
-      description: Update the category of a specific transaction
+      description: Update the category assignment for a specific transaction
       parameters:
       - description: Transaction ID
         in: path
         name: id
         required: true
         type: string
-      - description: Category data with category_id (null to remove category)
+      - description: Category assignment data
         in: body
         name: category
         required: true
@@ -578,10 +578,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: Category updated successfully
+          description: Updated transaction with new category
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/main.Transaction'
         "400":
           description: Bad request
           schema:
@@ -604,7 +603,8 @@ paths:
     post:
       consumes:
       - multipart/form-data
-      description: Upload a CSV file containing transaction data
+      description: Upload a CSV file containing transaction data. Returns the successfully
+        imported transactions and count of skipped rows.
       parameters:
       - description: CSV file to upload
         in: formData
@@ -615,7 +615,8 @@ paths:
       - application/json
       responses:
         "200":
-          description: Upload successful
+          description: Upload successful - returns message, transactions array, and
+            skipped_rows count
           schema:
             additionalProperties: true
             type: object
