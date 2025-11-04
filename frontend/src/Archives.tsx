@@ -173,7 +173,7 @@ const Archives: React.FC = () => {
       key: 'amount',
       render: (amount: number) => `$${amount.toFixed(2)}`,
       align: 'right',
-      width: '15%',
+      width: '20%',
     },
     {
       title: 'Date',
@@ -183,17 +183,11 @@ const Archives: React.FC = () => {
       width: '15%',
     },
     {
-      title: 'File',
-      dataIndex: 'file_name',
-      key: 'file_name',
-      width: '15%',
-    },
-    {
       title: 'Assigned To',
       dataIndex: 'assigned_to',
       key: 'assigned_to',
       render: (assignedTo: string[]) => assignedTo?.length || 0,
-      width: '15%',
+      width: '25%',
     },
   ];
 

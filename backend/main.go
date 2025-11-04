@@ -1359,14 +1359,18 @@ func convertTransactionFromActiveRow(t generated.GetActiveTransactionsRow) Trans
 		transaction.Amount = amountValue.Float64
 	}
 
-	// Convert assigned_to array
-	var assignedTo []string
-	for _, personUUID := range t.AssignedTo {
-		if personUUID.Valid {
-			assignedTo = append(assignedTo, uuid.UUID(personUUID.Bytes).String())
+	// Convert assigned_to array from UUIDs to names
+	if len(t.AssignedTo) > 0 {
+		names, err := convertUUIDArrayToNames(t.AssignedTo)
+		if err != nil {
+			log.Printf("Error converting UUIDs to names: %v", err)
+			transaction.AssignedTo = []string{} // Initialize as empty array
+		} else {
+			transaction.AssignedTo = names
 		}
+	} else {
+		transaction.AssignedTo = []string{} // Initialize as empty array
 	}
-	transaction.AssignedTo = assignedTo
 
 	// Convert optional fields
 	if t.DateUploaded.Valid {

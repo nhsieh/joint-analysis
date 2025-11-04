@@ -38,17 +38,13 @@ down:
 restart:
 	docker-compose restart
 
-# Rebuild only the backend container
-rebuild-backend:
-	docker-compose build backend
-
 # Rebuild only the frontend container
 rebuild-frontend:
 	docker-compose build frontend
 
 # Restart only the backend service
 restart-backend:
-	docker-compose up -d backend
+	docker-compose up --build -d backend
 
 # Restart only the frontend service
 restart-frontend:
