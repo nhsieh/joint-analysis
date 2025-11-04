@@ -11,15 +11,29 @@ import (
 )
 
 type Querier interface {
-	AddPersonToTransaction(ctx context.Context, arg AddPersonToTransactionParams) (Transaction, error)
+	AddPersonToTransaction(ctx context.Context, arg AddPersonToTransactionParams) (AddPersonToTransactionRow, error)
+	ArchiveTransactions(ctx context.Context, archiveID pgtype.UUID) error
+	// Archive queries
+	CreateArchive(ctx context.Context, arg CreateArchiveParams) (Archive, error)
+	// Archive person totals queries
+	CreateArchivePersonTotal(ctx context.Context, arg CreateArchivePersonTotalParams) (ArchivePersonTotal, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreatePerson(ctx context.Context, arg CreatePersonParams) (Person, error)
-	CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error)
+	CreateTransaction(ctx context.Context, arg CreateTransactionParams) (CreateTransactionRow, error)
 	DeleteAllTransactions(ctx context.Context) error
+	DeleteArchive(ctx context.Context, id pgtype.UUID) error
+	DeleteArchivePersonTotals(ctx context.Context, archiveID pgtype.UUID) error
 	DeleteCategory(ctx context.Context, id pgtype.UUID) error
 	DeletePerson(ctx context.Context, id pgtype.UUID) error
 	DeleteTransaction(ctx context.Context, id pgtype.UUID) error
 	FindDuplicateTransaction(ctx context.Context, arg FindDuplicateTransactionParams) (int64, error)
+	GetActiveTransactionGrandTotal(ctx context.Context) (pgtype.Numeric, error)
+	GetActiveTransactionTotals(ctx context.Context) ([]GetActiveTransactionTotalsRow, error)
+	GetActiveTransactions(ctx context.Context) ([]GetActiveTransactionsRow, error)
+	GetArchiveByID(ctx context.Context, id pgtype.UUID) (Archive, error)
+	GetArchivePersonTotals(ctx context.Context, archiveID pgtype.UUID) ([]GetArchivePersonTotalsRow, error)
+	GetArchivedTransactions(ctx context.Context, archiveID pgtype.UUID) ([]GetArchivedTransactionsRow, error)
+	GetArchives(ctx context.Context) ([]Archive, error)
 	// Categories queries
 	GetCategories(ctx context.Context) ([]Category, error)
 	GetCategoryByID(ctx context.Context, id pgtype.UUID) (Category, error)
@@ -30,17 +44,18 @@ type Querier interface {
 	GetPersonByName(ctx context.Context, name string) (Person, error)
 	GetTotalsByAssignedTo(ctx context.Context) ([]GetTotalsByAssignedToRow, error)
 	GetTotalsByCategory(ctx context.Context) ([]GetTotalsByCategoryRow, error)
-	GetTransactionByID(ctx context.Context, id pgtype.UUID) (Transaction, error)
+	GetTransactionByID(ctx context.Context, id pgtype.UUID) (GetTransactionByIDRow, error)
 	// Transactions queries
-	GetTransactions(ctx context.Context) ([]Transaction, error)
-	GetTransactionsByAssignedTo(ctx context.Context, assignedTo []pgtype.UUID) ([]Transaction, error)
-	GetTransactionsByFileName(ctx context.Context, fileName pgtype.Text) ([]Transaction, error)
-	RemovePersonFromTransaction(ctx context.Context, arg RemovePersonFromTransactionParams) (Transaction, error)
+	GetTransactions(ctx context.Context) ([]GetTransactionsRow, error)
+	GetTransactionsByAssignedTo(ctx context.Context, assignedTo []pgtype.UUID) ([]GetTransactionsByAssignedToRow, error)
+	GetTransactionsByFileName(ctx context.Context, fileName pgtype.Text) ([]GetTransactionsByFileNameRow, error)
+	RemovePersonFromTransaction(ctx context.Context, arg RemovePersonFromTransactionParams) (RemovePersonFromTransactionRow, error)
 	UnassignTransactionsByPerson(ctx context.Context, arrayRemove interface{}) error
+	UpdateArchiveTotals(ctx context.Context, arg UpdateArchiveTotalsParams) (Archive, error)
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
 	UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Person, error)
-	UpdateTransactionAssignment(ctx context.Context, arg UpdateTransactionAssignmentParams) (Transaction, error)
-	UpdateTransactionCategory(ctx context.Context, arg UpdateTransactionCategoryParams) (Transaction, error)
+	UpdateTransactionAssignment(ctx context.Context, arg UpdateTransactionAssignmentParams) (UpdateTransactionAssignmentRow, error)
+	UpdateTransactionCategory(ctx context.Context, arg UpdateTransactionCategoryParams) (UpdateTransactionCategoryRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

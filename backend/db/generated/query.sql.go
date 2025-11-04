@@ -25,9 +25,24 @@ type AddPersonToTransactionParams struct {
 	ArrayAppend interface{} `json:"array_append"`
 }
 
-func (q *Queries) AddPersonToTransaction(ctx context.Context, arg AddPersonToTransactionParams) (Transaction, error) {
+type AddPersonToTransactionRow struct {
+	ID              pgtype.UUID      `json:"id"`
+	Description     string           `json:"description"`
+	Amount          pgtype.Numeric   `json:"amount"`
+	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
+	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
+	FileName        pgtype.Text      `json:"file_name"`
+	TransactionDate pgtype.Date      `json:"transaction_date"`
+	PostedDate      pgtype.Date      `json:"posted_date"`
+	CardNumber      pgtype.Text      `json:"card_number"`
+	CategoryID      pgtype.UUID      `json:"category_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) AddPersonToTransaction(ctx context.Context, arg AddPersonToTransactionParams) (AddPersonToTransactionRow, error) {
 	row := q.db.QueryRow(ctx, addPersonToTransaction, arg.ID, arg.ArrayAppend)
-	var i Transaction
+	var i AddPersonToTransactionRow
 	err := row.Scan(
 		&i.ID,
 		&i.Description,
@@ -39,6 +54,72 @@ func (q *Queries) AddPersonToTransaction(ctx context.Context, arg AddPersonToTra
 		&i.PostedDate,
 		&i.CardNumber,
 		&i.CategoryID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const archiveTransactions = `-- name: ArchiveTransactions :exec
+UPDATE transactions
+SET archive_id = $1, updated_at = CURRENT_TIMESTAMP
+WHERE archive_id IS NULL
+`
+
+func (q *Queries) ArchiveTransactions(ctx context.Context, archiveID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, archiveTransactions, archiveID)
+	return err
+}
+
+const createArchive = `-- name: CreateArchive :one
+INSERT INTO archives (description, transaction_count, total_amount)
+VALUES ($1, $2, $3)
+RETURNING id, description, archived_at, transaction_count, total_amount, created_at, updated_at
+`
+
+type CreateArchiveParams struct {
+	Description      pgtype.Text    `json:"description"`
+	TransactionCount int32          `json:"transaction_count"`
+	TotalAmount      pgtype.Numeric `json:"total_amount"`
+}
+
+// Archive queries
+func (q *Queries) CreateArchive(ctx context.Context, arg CreateArchiveParams) (Archive, error) {
+	row := q.db.QueryRow(ctx, createArchive, arg.Description, arg.TransactionCount, arg.TotalAmount)
+	var i Archive
+	err := row.Scan(
+		&i.ID,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.TransactionCount,
+		&i.TotalAmount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createArchivePersonTotal = `-- name: CreateArchivePersonTotal :one
+INSERT INTO archive_person_totals (archive_id, person_id, total_amount)
+VALUES ($1, $2, $3)
+RETURNING id, archive_id, person_id, total_amount, created_at, updated_at
+`
+
+type CreateArchivePersonTotalParams struct {
+	ArchiveID   pgtype.UUID    `json:"archive_id"`
+	PersonID    pgtype.UUID    `json:"person_id"`
+	TotalAmount pgtype.Numeric `json:"total_amount"`
+}
+
+// Archive person totals queries
+func (q *Queries) CreateArchivePersonTotal(ctx context.Context, arg CreateArchivePersonTotalParams) (ArchivePersonTotal, error) {
+	row := q.db.QueryRow(ctx, createArchivePersonTotal, arg.ArchiveID, arg.PersonID, arg.TotalAmount)
+	var i ArchivePersonTotal
+	err := row.Scan(
+		&i.ID,
+		&i.ArchiveID,
+		&i.PersonID,
+		&i.TotalAmount,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -113,7 +194,22 @@ type CreateTransactionParams struct {
 	CategoryID      pgtype.UUID    `json:"category_id"`
 }
 
-func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error) {
+type CreateTransactionRow struct {
+	ID              pgtype.UUID      `json:"id"`
+	Description     string           `json:"description"`
+	Amount          pgtype.Numeric   `json:"amount"`
+	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
+	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
+	FileName        pgtype.Text      `json:"file_name"`
+	TransactionDate pgtype.Date      `json:"transaction_date"`
+	PostedDate      pgtype.Date      `json:"posted_date"`
+	CardNumber      pgtype.Text      `json:"card_number"`
+	CategoryID      pgtype.UUID      `json:"category_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionParams) (CreateTransactionRow, error) {
 	row := q.db.QueryRow(ctx, createTransaction,
 		arg.Description,
 		arg.Amount,
@@ -123,7 +219,7 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		arg.CardNumber,
 		arg.CategoryID,
 	)
-	var i Transaction
+	var i CreateTransactionRow
 	err := row.Scan(
 		&i.ID,
 		&i.Description,
@@ -147,6 +243,26 @@ DELETE FROM transactions
 
 func (q *Queries) DeleteAllTransactions(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, deleteAllTransactions)
+	return err
+}
+
+const deleteArchive = `-- name: DeleteArchive :exec
+DELETE FROM archives
+WHERE id = $1
+`
+
+func (q *Queries) DeleteArchive(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteArchive, id)
+	return err
+}
+
+const deleteArchivePersonTotals = `-- name: DeleteArchivePersonTotals :exec
+DELETE FROM archive_person_totals
+WHERE archive_id = $1
+`
+
+func (q *Queries) DeleteArchivePersonTotals(ctx context.Context, archiveID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteArchivePersonTotals, archiveID)
 	return err
 }
 
@@ -181,13 +297,14 @@ func (q *Queries) DeleteTransaction(ctx context.Context, id pgtype.UUID) error {
 }
 
 const findDuplicateTransaction = `-- name: FindDuplicateTransaction :one
-SELECT COUNT(*) 
-FROM transactions 
-WHERE description = $1 
-  AND amount = $2 
-  AND transaction_date = $3 
-  AND posted_date = $4 
+SELECT COUNT(*)
+FROM transactions
+WHERE description = $1
+  AND amount = $2
+  AND transaction_date = $3
+  AND posted_date = $4
   AND card_number = $5
+  AND archive_id IS NULL
 `
 
 type FindDuplicateTransactionParams struct {
@@ -209,6 +326,276 @@ func (q *Queries) FindDuplicateTransaction(ctx context.Context, arg FindDuplicat
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const getActiveTransactionGrandTotal = `-- name: GetActiveTransactionGrandTotal :one
+SELECT COALESCE(SUM(t.amount / array_length(t.assigned_to, 1)), 0)::numeric as grand_total
+FROM transactions t
+CROSS JOIN LATERAL unnest(t.assigned_to) AS person_id
+WHERE t.assigned_to IS NOT NULL
+  AND array_length(t.assigned_to, 1) > 0
+  AND t.archive_id IS NULL
+`
+
+func (q *Queries) GetActiveTransactionGrandTotal(ctx context.Context) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, getActiveTransactionGrandTotal)
+	var grand_total pgtype.Numeric
+	err := row.Scan(&grand_total)
+	return grand_total, err
+}
+
+const getActiveTransactionTotals = `-- name: GetActiveTransactionTotals :many
+SELECT p.name as assigned_to, SUM(t.amount / array_length(t.assigned_to, 1))::numeric as total
+FROM transactions t
+CROSS JOIN LATERAL unnest(t.assigned_to) AS person_id
+JOIN people p ON p.id = person_id
+WHERE t.assigned_to IS NOT NULL
+  AND array_length(t.assigned_to, 1) > 0
+  AND t.archive_id IS NULL
+GROUP BY p.id, p.name
+ORDER BY p.name
+`
+
+type GetActiveTransactionTotalsRow struct {
+	AssignedTo string         `json:"assigned_to"`
+	Total      pgtype.Numeric `json:"total"`
+}
+
+func (q *Queries) GetActiveTransactionTotals(ctx context.Context) ([]GetActiveTransactionTotalsRow, error) {
+	rows, err := q.db.Query(ctx, getActiveTransactionTotals)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetActiveTransactionTotalsRow
+	for rows.Next() {
+		var i GetActiveTransactionTotalsRow
+		if err := rows.Scan(&i.AssignedTo, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getActiveTransactions = `-- name: GetActiveTransactions :many
+SELECT id, description, amount, assigned_to, date_uploaded, file_name,
+       transaction_date, posted_date, card_number, category_id,
+       created_at, updated_at
+FROM transactions
+WHERE archive_id IS NULL
+ORDER BY date_uploaded DESC
+`
+
+type GetActiveTransactionsRow struct {
+	ID              pgtype.UUID      `json:"id"`
+	Description     string           `json:"description"`
+	Amount          pgtype.Numeric   `json:"amount"`
+	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
+	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
+	FileName        pgtype.Text      `json:"file_name"`
+	TransactionDate pgtype.Date      `json:"transaction_date"`
+	PostedDate      pgtype.Date      `json:"posted_date"`
+	CardNumber      pgtype.Text      `json:"card_number"`
+	CategoryID      pgtype.UUID      `json:"category_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetActiveTransactions(ctx context.Context) ([]GetActiveTransactionsRow, error) {
+	rows, err := q.db.Query(ctx, getActiveTransactions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetActiveTransactionsRow
+	for rows.Next() {
+		var i GetActiveTransactionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Description,
+			&i.Amount,
+			&i.AssignedTo,
+			&i.DateUploaded,
+			&i.FileName,
+			&i.TransactionDate,
+			&i.PostedDate,
+			&i.CardNumber,
+			&i.CategoryID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getArchiveByID = `-- name: GetArchiveByID :one
+SELECT id, description, archived_at, transaction_count, total_amount, created_at, updated_at
+FROM archives
+WHERE id = $1
+`
+
+func (q *Queries) GetArchiveByID(ctx context.Context, id pgtype.UUID) (Archive, error) {
+	row := q.db.QueryRow(ctx, getArchiveByID, id)
+	var i Archive
+	err := row.Scan(
+		&i.ID,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.TransactionCount,
+		&i.TotalAmount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getArchivePersonTotals = `-- name: GetArchivePersonTotals :many
+SELECT apt.id, apt.archive_id, apt.person_id, p.name as person_name, apt.total_amount, apt.created_at, apt.updated_at
+FROM archive_person_totals apt
+JOIN people p ON apt.person_id = p.id
+WHERE apt.archive_id = $1
+ORDER BY p.name
+`
+
+type GetArchivePersonTotalsRow struct {
+	ID          pgtype.UUID      `json:"id"`
+	ArchiveID   pgtype.UUID      `json:"archive_id"`
+	PersonID    pgtype.UUID      `json:"person_id"`
+	PersonName  string           `json:"person_name"`
+	TotalAmount pgtype.Numeric   `json:"total_amount"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetArchivePersonTotals(ctx context.Context, archiveID pgtype.UUID) ([]GetArchivePersonTotalsRow, error) {
+	rows, err := q.db.Query(ctx, getArchivePersonTotals, archiveID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetArchivePersonTotalsRow
+	for rows.Next() {
+		var i GetArchivePersonTotalsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ArchiveID,
+			&i.PersonID,
+			&i.PersonName,
+			&i.TotalAmount,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getArchivedTransactions = `-- name: GetArchivedTransactions :many
+SELECT id, description, amount, assigned_to, date_uploaded, file_name,
+       transaction_date, posted_date, card_number, category_id, archive_id,
+       created_at, updated_at
+FROM transactions
+WHERE archive_id = $1
+ORDER BY date_uploaded DESC
+`
+
+type GetArchivedTransactionsRow struct {
+	ID              pgtype.UUID      `json:"id"`
+	Description     string           `json:"description"`
+	Amount          pgtype.Numeric   `json:"amount"`
+	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
+	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
+	FileName        pgtype.Text      `json:"file_name"`
+	TransactionDate pgtype.Date      `json:"transaction_date"`
+	PostedDate      pgtype.Date      `json:"posted_date"`
+	CardNumber      pgtype.Text      `json:"card_number"`
+	CategoryID      pgtype.UUID      `json:"category_id"`
+	ArchiveID       pgtype.UUID      `json:"archive_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetArchivedTransactions(ctx context.Context, archiveID pgtype.UUID) ([]GetArchivedTransactionsRow, error) {
+	rows, err := q.db.Query(ctx, getArchivedTransactions, archiveID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetArchivedTransactionsRow
+	for rows.Next() {
+		var i GetArchivedTransactionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Description,
+			&i.Amount,
+			&i.AssignedTo,
+			&i.DateUploaded,
+			&i.FileName,
+			&i.TransactionDate,
+			&i.PostedDate,
+			&i.CardNumber,
+			&i.CategoryID,
+			&i.ArchiveID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getArchives = `-- name: GetArchives :many
+SELECT id, description, archived_at, transaction_count, total_amount, created_at, updated_at
+FROM archives
+ORDER BY archived_at DESC
+`
+
+func (q *Queries) GetArchives(ctx context.Context) ([]Archive, error) {
+	rows, err := q.db.Query(ctx, getArchives)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Archive
+	for rows.Next() {
+		var i Archive
+		if err := rows.Scan(
+			&i.ID,
+			&i.Description,
+			&i.ArchivedAt,
+			&i.TransactionCount,
+			&i.TotalAmount,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getCategories = `-- name: GetCategories :many
@@ -433,9 +820,24 @@ FROM transactions
 WHERE id = $1
 `
 
-func (q *Queries) GetTransactionByID(ctx context.Context, id pgtype.UUID) (Transaction, error) {
+type GetTransactionByIDRow struct {
+	ID              pgtype.UUID      `json:"id"`
+	Description     string           `json:"description"`
+	Amount          pgtype.Numeric   `json:"amount"`
+	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
+	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
+	FileName        pgtype.Text      `json:"file_name"`
+	TransactionDate pgtype.Date      `json:"transaction_date"`
+	PostedDate      pgtype.Date      `json:"posted_date"`
+	CardNumber      pgtype.Text      `json:"card_number"`
+	CategoryID      pgtype.UUID      `json:"category_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetTransactionByID(ctx context.Context, id pgtype.UUID) (GetTransactionByIDRow, error) {
 	row := q.db.QueryRow(ctx, getTransactionByID, id)
-	var i Transaction
+	var i GetTransactionByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.Description,
@@ -461,16 +863,31 @@ FROM transactions
 ORDER BY date_uploaded DESC
 `
 
+type GetTransactionsRow struct {
+	ID              pgtype.UUID      `json:"id"`
+	Description     string           `json:"description"`
+	Amount          pgtype.Numeric   `json:"amount"`
+	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
+	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
+	FileName        pgtype.Text      `json:"file_name"`
+	TransactionDate pgtype.Date      `json:"transaction_date"`
+	PostedDate      pgtype.Date      `json:"posted_date"`
+	CardNumber      pgtype.Text      `json:"card_number"`
+	CategoryID      pgtype.UUID      `json:"category_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
 // Transactions queries
-func (q *Queries) GetTransactions(ctx context.Context) ([]Transaction, error) {
+func (q *Queries) GetTransactions(ctx context.Context) ([]GetTransactionsRow, error) {
 	rows, err := q.db.Query(ctx, getTransactions)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Transaction
+	var items []GetTransactionsRow
 	for rows.Next() {
-		var i Transaction
+		var i GetTransactionsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Description,
@@ -504,15 +921,30 @@ WHERE $1 = ANY(assigned_to)
 ORDER BY date_uploaded DESC
 `
 
-func (q *Queries) GetTransactionsByAssignedTo(ctx context.Context, assignedTo []pgtype.UUID) ([]Transaction, error) {
+type GetTransactionsByAssignedToRow struct {
+	ID              pgtype.UUID      `json:"id"`
+	Description     string           `json:"description"`
+	Amount          pgtype.Numeric   `json:"amount"`
+	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
+	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
+	FileName        pgtype.Text      `json:"file_name"`
+	TransactionDate pgtype.Date      `json:"transaction_date"`
+	PostedDate      pgtype.Date      `json:"posted_date"`
+	CardNumber      pgtype.Text      `json:"card_number"`
+	CategoryID      pgtype.UUID      `json:"category_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetTransactionsByAssignedTo(ctx context.Context, assignedTo []pgtype.UUID) ([]GetTransactionsByAssignedToRow, error) {
 	rows, err := q.db.Query(ctx, getTransactionsByAssignedTo, assignedTo)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Transaction
+	var items []GetTransactionsByAssignedToRow
 	for rows.Next() {
-		var i Transaction
+		var i GetTransactionsByAssignedToRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Description,
@@ -546,15 +978,30 @@ WHERE file_name = $1
 ORDER BY date_uploaded DESC
 `
 
-func (q *Queries) GetTransactionsByFileName(ctx context.Context, fileName pgtype.Text) ([]Transaction, error) {
+type GetTransactionsByFileNameRow struct {
+	ID              pgtype.UUID      `json:"id"`
+	Description     string           `json:"description"`
+	Amount          pgtype.Numeric   `json:"amount"`
+	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
+	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
+	FileName        pgtype.Text      `json:"file_name"`
+	TransactionDate pgtype.Date      `json:"transaction_date"`
+	PostedDate      pgtype.Date      `json:"posted_date"`
+	CardNumber      pgtype.Text      `json:"card_number"`
+	CategoryID      pgtype.UUID      `json:"category_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetTransactionsByFileName(ctx context.Context, fileName pgtype.Text) ([]GetTransactionsByFileNameRow, error) {
 	rows, err := q.db.Query(ctx, getTransactionsByFileName, fileName)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Transaction
+	var items []GetTransactionsByFileNameRow
 	for rows.Next() {
-		var i Transaction
+		var i GetTransactionsByFileNameRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Description,
@@ -593,9 +1040,24 @@ type RemovePersonFromTransactionParams struct {
 	ArrayRemove interface{} `json:"array_remove"`
 }
 
-func (q *Queries) RemovePersonFromTransaction(ctx context.Context, arg RemovePersonFromTransactionParams) (Transaction, error) {
+type RemovePersonFromTransactionRow struct {
+	ID              pgtype.UUID      `json:"id"`
+	Description     string           `json:"description"`
+	Amount          pgtype.Numeric   `json:"amount"`
+	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
+	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
+	FileName        pgtype.Text      `json:"file_name"`
+	TransactionDate pgtype.Date      `json:"transaction_date"`
+	PostedDate      pgtype.Date      `json:"posted_date"`
+	CardNumber      pgtype.Text      `json:"card_number"`
+	CategoryID      pgtype.UUID      `json:"category_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) RemovePersonFromTransaction(ctx context.Context, arg RemovePersonFromTransactionParams) (RemovePersonFromTransactionRow, error) {
 	row := q.db.QueryRow(ctx, removePersonFromTransaction, arg.ID, arg.ArrayRemove)
-	var i Transaction
+	var i RemovePersonFromTransactionRow
 	err := row.Scan(
 		&i.ID,
 		&i.Description,
@@ -622,6 +1084,34 @@ WHERE $1 = ANY(assigned_to)
 func (q *Queries) UnassignTransactionsByPerson(ctx context.Context, arrayRemove interface{}) error {
 	_, err := q.db.Exec(ctx, unassignTransactionsByPerson, arrayRemove)
 	return err
+}
+
+const updateArchiveTotals = `-- name: UpdateArchiveTotals :one
+UPDATE archives
+SET transaction_count = $2, total_amount = $3, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, description, archived_at, transaction_count, total_amount, created_at, updated_at
+`
+
+type UpdateArchiveTotalsParams struct {
+	ID               pgtype.UUID    `json:"id"`
+	TransactionCount int32          `json:"transaction_count"`
+	TotalAmount      pgtype.Numeric `json:"total_amount"`
+}
+
+func (q *Queries) UpdateArchiveTotals(ctx context.Context, arg UpdateArchiveTotalsParams) (Archive, error) {
+	row := q.db.QueryRow(ctx, updateArchiveTotals, arg.ID, arg.TransactionCount, arg.TotalAmount)
+	var i Archive
+	err := row.Scan(
+		&i.ID,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.TransactionCount,
+		&i.TotalAmount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const updateCategory = `-- name: UpdateCategory :one
@@ -697,9 +1187,24 @@ type UpdateTransactionAssignmentParams struct {
 	AssignedTo []pgtype.UUID `json:"assigned_to"`
 }
 
-func (q *Queries) UpdateTransactionAssignment(ctx context.Context, arg UpdateTransactionAssignmentParams) (Transaction, error) {
+type UpdateTransactionAssignmentRow struct {
+	ID              pgtype.UUID      `json:"id"`
+	Description     string           `json:"description"`
+	Amount          pgtype.Numeric   `json:"amount"`
+	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
+	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
+	FileName        pgtype.Text      `json:"file_name"`
+	TransactionDate pgtype.Date      `json:"transaction_date"`
+	PostedDate      pgtype.Date      `json:"posted_date"`
+	CardNumber      pgtype.Text      `json:"card_number"`
+	CategoryID      pgtype.UUID      `json:"category_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) UpdateTransactionAssignment(ctx context.Context, arg UpdateTransactionAssignmentParams) (UpdateTransactionAssignmentRow, error) {
 	row := q.db.QueryRow(ctx, updateTransactionAssignment, arg.ID, arg.AssignedTo)
-	var i Transaction
+	var i UpdateTransactionAssignmentRow
 	err := row.Scan(
 		&i.ID,
 		&i.Description,
@@ -731,9 +1236,24 @@ type UpdateTransactionCategoryParams struct {
 	CategoryID pgtype.UUID `json:"category_id"`
 }
 
-func (q *Queries) UpdateTransactionCategory(ctx context.Context, arg UpdateTransactionCategoryParams) (Transaction, error) {
+type UpdateTransactionCategoryRow struct {
+	ID              pgtype.UUID      `json:"id"`
+	Description     string           `json:"description"`
+	Amount          pgtype.Numeric   `json:"amount"`
+	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
+	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
+	FileName        pgtype.Text      `json:"file_name"`
+	TransactionDate pgtype.Date      `json:"transaction_date"`
+	PostedDate      pgtype.Date      `json:"posted_date"`
+	CardNumber      pgtype.Text      `json:"card_number"`
+	CategoryID      pgtype.UUID      `json:"category_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) UpdateTransactionCategory(ctx context.Context, arg UpdateTransactionCategoryParams) (UpdateTransactionCategoryRow, error) {
 	row := q.db.QueryRow(ctx, updateTransactionCategory, arg.ID, arg.CategoryID)
-	var i Transaction
+	var i UpdateTransactionCategoryRow
 	err := row.Scan(
 		&i.ID,
 		&i.Description,

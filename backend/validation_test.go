@@ -122,13 +122,13 @@ func TestCreateCategoryValidation(t *testing.T) {
 	})
 
 	t.Run("should return 409 for duplicate name", func(t *testing.T) {
-		// Create first category
-		_, err := createTestCategory("Shopping", "Retail purchases", "#33FF57")
+		// Create a category with a unique name
+		_, err := createTestCategory("Custom Shopping", "Retail purchases", "#33FF57")
 		assertNoError(t, err)
 
 		// Try to create duplicate
 		requestBody := map[string]interface{}{
-			"name":        "Shopping",
+			"name":        "Custom Shopping",
 			"description": "Online purchases",
 		}
 

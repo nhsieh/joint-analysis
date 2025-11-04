@@ -105,7 +105,8 @@ WHERE description = $1
   AND amount = $2
   AND transaction_date = $3
   AND posted_date = $4
-  AND card_number = $5;
+  AND card_number = $5
+  AND archive_id IS NULL;
 
 -- name: UpdateTransactionAssignment :one
 UPDATE transactions
@@ -167,3 +168,86 @@ ORDER BY c.name;
 
 -- name: DeleteAllTransactions :exec
 DELETE FROM transactions;
+
+-- Archive queries
+-- name: CreateArchive :one
+INSERT INTO archives (description, transaction_count, total_amount)
+VALUES ($1, $2, $3)
+RETURNING id, description, archived_at, transaction_count, total_amount, created_at, updated_at;
+
+-- name: GetArchives :many
+SELECT id, description, archived_at, transaction_count, total_amount, created_at, updated_at
+FROM archives
+ORDER BY archived_at DESC;
+
+-- name: GetArchiveByID :one
+SELECT id, description, archived_at, transaction_count, total_amount, created_at, updated_at
+FROM archives
+WHERE id = $1;
+
+-- name: UpdateArchiveTotals :one
+UPDATE archives
+SET transaction_count = $2, total_amount = $3, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, description, archived_at, transaction_count, total_amount, created_at, updated_at;
+
+-- name: DeleteArchive :exec
+DELETE FROM archives
+WHERE id = $1;
+
+-- name: GetActiveTransactions :many
+SELECT id, description, amount, assigned_to, date_uploaded, file_name,
+       transaction_date, posted_date, card_number, category_id,
+       created_at, updated_at
+FROM transactions
+WHERE archive_id IS NULL
+ORDER BY date_uploaded DESC;
+
+-- name: GetArchivedTransactions :many
+SELECT id, description, amount, assigned_to, date_uploaded, file_name,
+       transaction_date, posted_date, card_number, category_id, archive_id,
+       created_at, updated_at
+FROM transactions
+WHERE archive_id = $1
+ORDER BY date_uploaded DESC;
+
+-- name: ArchiveTransactions :exec
+UPDATE transactions
+SET archive_id = $1, updated_at = CURRENT_TIMESTAMP
+WHERE archive_id IS NULL;
+
+-- name: GetActiveTransactionTotals :many
+SELECT p.name as assigned_to, SUM(t.amount / array_length(t.assigned_to, 1))::numeric as total
+FROM transactions t
+CROSS JOIN LATERAL unnest(t.assigned_to) AS person_id
+JOIN people p ON p.id = person_id
+WHERE t.assigned_to IS NOT NULL
+  AND array_length(t.assigned_to, 1) > 0
+  AND t.archive_id IS NULL
+GROUP BY p.id, p.name
+ORDER BY p.name;
+
+-- Archive person totals queries
+-- name: CreateArchivePersonTotal :one
+INSERT INTO archive_person_totals (archive_id, person_id, total_amount)
+VALUES ($1, $2, $3)
+RETURNING id, archive_id, person_id, total_amount, created_at, updated_at;
+
+-- name: GetArchivePersonTotals :many
+SELECT apt.id, apt.archive_id, apt.person_id, p.name as person_name, apt.total_amount, apt.created_at, apt.updated_at
+FROM archive_person_totals apt
+JOIN people p ON apt.person_id = p.id
+WHERE apt.archive_id = $1
+ORDER BY p.name;
+
+-- name: DeleteArchivePersonTotals :exec
+DELETE FROM archive_person_totals
+WHERE archive_id = $1;
+
+-- name: GetActiveTransactionGrandTotal :one
+SELECT COALESCE(SUM(t.amount / array_length(t.assigned_to, 1)), 0)::numeric as grand_total
+FROM transactions t
+CROSS JOIN LATERAL unnest(t.assigned_to) AS person_id
+WHERE t.assigned_to IS NOT NULL
+  AND array_length(t.assigned_to, 1) > 0
+  AND t.archive_id IS NULL;

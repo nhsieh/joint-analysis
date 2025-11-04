@@ -9,9 +9,11 @@ import {
   DollarCircleOutlined,
   SettingOutlined,
   HomeOutlined,
+  InboxOutlined,
 } from '@ant-design/icons';
 import Dashboard from './Dashboard';
 import Settings from './Settings';
+import Archives from './Archives';
 
 const { Header, Content } = Layout;
 const { Title } = Typography;
@@ -24,6 +26,11 @@ const NavMenu: React.FC = () => {
       key: '/',
       icon: <HomeOutlined />,
       label: <Link to="/">Dashboard</Link>,
+    },
+    {
+      key: '/archives',
+      icon: <InboxOutlined />,
+      label: <Link to="/archives">Archives</Link>,
     },
     {
       key: '/settings',
@@ -65,6 +72,7 @@ function App() {
         <Content>
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/archives" element={<Archives />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </Content>

@@ -8,6 +8,41 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ActiveTransaction struct {
+	ID              pgtype.UUID      `json:"id"`
+	Description     string           `json:"description"`
+	Amount          pgtype.Numeric   `json:"amount"`
+	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
+	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
+	FileName        pgtype.Text      `json:"file_name"`
+	TransactionDate pgtype.Date      `json:"transaction_date"`
+	PostedDate      pgtype.Date      `json:"posted_date"`
+	CardNumber      pgtype.Text      `json:"card_number"`
+	CategoryID      pgtype.UUID      `json:"category_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+	ArchiveID       pgtype.UUID      `json:"archive_id"`
+}
+
+type Archive struct {
+	ID               pgtype.UUID      `json:"id"`
+	Description      pgtype.Text      `json:"description"`
+	ArchivedAt       pgtype.Timestamp `json:"archived_at"`
+	TransactionCount int32            `json:"transaction_count"`
+	TotalAmount      pgtype.Numeric   `json:"total_amount"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
+}
+
+type ArchivePersonTotal struct {
+	ID          pgtype.UUID      `json:"id"`
+	ArchiveID   pgtype.UUID      `json:"archive_id"`
+	PersonID    pgtype.UUID      `json:"person_id"`
+	TotalAmount pgtype.Numeric   `json:"total_amount"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+}
+
 type Category struct {
 	ID          pgtype.UUID      `json:"id"`
 	Name        string           `json:"name"`
@@ -38,4 +73,5 @@ type Transaction struct {
 	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+	ArchiveID       pgtype.UUID      `json:"archive_id"`
 }

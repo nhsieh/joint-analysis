@@ -100,8 +100,14 @@ func setupTestDB() error {
 	// Initialize test queries
 	testQueries = generated.New(testDB)
 
-	// Setup test router
+	// Setup test router (this sets global queries = testQueries)
 	setupTestRouter()
+
+	// Initialize category mapping for tests (after queries is set)
+	categoryMapping, err = initializeCategoryMapping()
+	if err != nil {
+		return fmt.Errorf("failed to initialize category mapping for tests: %w", err)
+	}
 
 	return nil
 }
@@ -136,23 +142,78 @@ func setupTestRouter() {
 	testRouter.DELETE("/api/categories/:id", deleteCategory)
 	testRouter.PUT("/api/transactions/:id/category", updateTransactionCategory)
 	testRouter.GET("/api/totals", getTotals)
+	testRouter.POST("/api/archives", createArchive)
+	testRouter.GET("/api/archives", getArchives)
+	testRouter.GET("/api/archives/:id/transactions", getArchiveTransactions)
 }
 
 // cleanupTestData removes all data from test tables
 func cleanupTestData() error {
 	ctx := context.Background()
 
-	// Clean in reverse dependency order
+	// Clean in reverse dependency order (child tables first)
+	if _, err := testDB.Exec(ctx, "DELETE FROM archive_person_totals"); err != nil {
+		return fmt.Errorf("failed to clean archive_person_totals: %w", err)
+	}
+
 	if _, err := testDB.Exec(ctx, "DELETE FROM transactions"); err != nil {
 		return fmt.Errorf("failed to clean transactions: %w", err)
 	}
 
+	if _, err := testDB.Exec(ctx, "DELETE FROM archives"); err != nil {
+		return fmt.Errorf("failed to clean archives: %w", err)
+	}
+
+	// Delete all categories and people, then reinitialize defaults
 	if _, err := testDB.Exec(ctx, "DELETE FROM categories"); err != nil {
 		return fmt.Errorf("failed to clean categories: %w", err)
 	}
 
 	if _, err := testDB.Exec(ctx, "DELETE FROM people"); err != nil {
 		return fmt.Errorf("failed to clean people: %w", err)
+	}
+
+	// Reinitialize default data
+	if err := reinitializeDefaultData(ctx); err != nil {
+		return fmt.Errorf("failed to reinitialize default data: %w", err)
+	}
+
+	// Reinitialize category mapping after data is restored
+	var err error
+	categoryMapping, err = initializeCategoryMapping()
+	if err != nil {
+		return fmt.Errorf("failed to reinitialize category mapping: %w", err)
+	}
+
+	return nil
+}
+
+// reinitializeDefaultData re-inserts the default categories and people
+func reinitializeDefaultData(ctx context.Context) error {
+	// Insert default joint user
+	_, err := testDB.Exec(ctx, `INSERT INTO people (name, email) VALUES ('Joint', 'joint@example.com')`)
+	if err != nil {
+		return fmt.Errorf("failed to insert default person: %w", err)
+	}
+
+	// Insert default categories
+	_, err = testDB.Exec(ctx, `
+		INSERT INTO categories (name, description, color) VALUES
+		('Entertainment', 'Movies, concerts, streaming services', '#66BB6A'),
+		('Fees', 'Bank fees, interest charges, service fees', '#8D6E63'),
+		('Food & Dining', 'Restaurants, groceries, food delivery', '#FF7043'),
+		('Health', 'Medical expenses, pharmacy, insurance', '#EF5350'),
+		('Hobby', 'Triathlon, kyudo, gym membership', '#4c783c'),
+		('Other', 'Miscellaneous', '#78909C'),
+		('Pets', 'Pet care, grooming, supplies, insurance', '#13AFAD'),
+		('Reimbursable', 'Business trips', '#156873'),
+		('Shopping', 'Retail purchases, online shopping', '#AB47BC'),
+		('Transportation', 'Gas, public transit, rideshare, parking', '#42A5F5'),
+		('Travel', 'Flights, hotels, vacation expenses', '#26C6DA'),
+		('Utilities', 'Electric, gas, water, internet, phone', '#FFA726')
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to insert default categories: %w", err)
 	}
 
 	return nil
