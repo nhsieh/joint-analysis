@@ -105,7 +105,8 @@ WHERE description = $1
   AND amount = $2
   AND transaction_date = $3
   AND posted_date = $4
-  AND card_number = $5;
+  AND card_number = $5
+  AND archive_id IS NULL;
 
 -- name: UpdateTransactionAssignment :one
 UPDATE transactions

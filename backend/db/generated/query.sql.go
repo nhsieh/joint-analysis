@@ -318,6 +318,7 @@ WHERE description = $1
   AND transaction_date = $3
   AND posted_date = $4
   AND card_number = $5
+  AND archive_id IS NULL
 `
 
 type FindDuplicateTransactionParams struct {
