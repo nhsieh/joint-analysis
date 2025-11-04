@@ -682,7 +682,7 @@ const docTemplate = `{
         },
         "/api/transactions/{id}/category": {
             "put": {
-                "description": "Update the category of a specific transaction",
+                "description": "Update the category assignment for a specific transaction",
                 "consumes": [
                     "application/json"
                 ],
@@ -702,7 +702,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Category data with category_id (null to remove category)",
+                        "description": "Category assignment data",
                         "name": "category",
                         "in": "body",
                         "required": true,
@@ -718,10 +718,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Category updated successfully",
+                        "description": "Updated transaction with new category",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/main.Transaction"
                         }
                     },
                     "400": {
@@ -750,7 +749,7 @@ const docTemplate = `{
         },
         "/api/upload-csv": {
             "post": {
-                "description": "Upload a CSV file containing transaction data",
+                "description": "Upload a CSV file containing transaction data. Returns the successfully imported transactions and count of skipped rows.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -772,7 +771,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Upload successful",
+                        "description": "Upload successful - returns message, transactions array, and skipped_rows count",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true

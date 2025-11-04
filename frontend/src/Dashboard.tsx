@@ -192,12 +192,23 @@ const Dashboard: React.FC = () => {
     formData.append('file', file);
 
     try {
-      await axios.post(`${API_URL}/api/upload-csv`, formData, {
+      const response = await axios.post(`${API_URL}/api/upload-csv`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      message.success('CSV uploaded successfully!');
+
+      const { transactions = [], skipped_rows = 0 } = response.data;
+      const uploadedCount = transactions.length;
+
+      if (skipped_rows > 0) {
+        message.success(
+          `CSV uploaded successfully! ${uploadedCount} transactions processed, ${skipped_rows} rows skipped.`
+        );
+      } else {
+        message.success(`CSV uploaded successfully! ${uploadedCount} transactions processed.`);
+      }
+
       await fetchTransactions();
       await fetchTotals();
     } catch (error) {

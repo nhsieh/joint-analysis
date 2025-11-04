@@ -465,6 +465,15 @@ func TestUploadCSV(t *testing.T) {
 		if len(transactions) != 3 {
 			t.Errorf("Expected 3 transactions, got %d", len(transactions))
 		}
+
+		// Check that skipped_rows is present and 0 for valid CSV
+		skippedRows, ok := result["skipped_rows"].(float64)
+		if !ok {
+			t.Fatal("Expected skipped_rows field in response")
+		}
+		if skippedRows != 0 {
+			t.Errorf("Expected 0 skipped rows, got %v", skippedRows)
+		}
 	})
 
 	t.Run("should accept simple text file as CSV", func(t *testing.T) {
@@ -545,6 +554,15 @@ func TestUploadCSV(t *testing.T) {
 		// Should only have 1 valid transaction (the lunch one)
 		if len(transactions) != 1 {
 			t.Errorf("Expected 1 valid transaction, got %d", len(transactions))
+		}
+
+		// Check that 1 row was skipped due to invalid amount
+		skippedRows, ok := result["skipped_rows"].(float64)
+		if !ok {
+			t.Fatal("Expected skipped_rows field in response")
+		}
+		if skippedRows != 1 {
+			t.Errorf("Expected 1 skipped row, got %v", skippedRows)
 		}
 	})
 
@@ -664,6 +682,15 @@ func TestUploadCSV(t *testing.T) {
 		if len(transactions) != 0 {
 			t.Errorf("Expected 0 transactions due to duplicates, got %d", len(transactions))
 		}
+
+		// Check that 2 rows were skipped due to duplicates
+		skippedRows, ok := result["skipped_rows"].(float64)
+		if !ok {
+			t.Fatal("Expected skipped_rows field in response")
+		}
+		if skippedRows != 2 {
+			t.Errorf("Expected 2 skipped rows, got %v", skippedRows)
+		}
 	})
 
 	t.Run("should handle malformed multipart request", func(t *testing.T) {
@@ -712,6 +739,15 @@ func TestUploadCSV(t *testing.T) {
 		}
 		if len(transactions) != 0 {
 			t.Errorf("Expected 0 transactions for insufficient columns, got %d", len(transactions))
+		}
+
+		// Check that 2 rows were skipped due to insufficient columns
+		skippedRows, ok := result["skipped_rows"].(float64)
+		if !ok {
+			t.Fatal("Expected skipped_rows field in response")
+		}
+		if skippedRows != 2 {
+			t.Errorf("Expected 2 skipped rows, got %v", skippedRows)
 		}
 	})
 }
