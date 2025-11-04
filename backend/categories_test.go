@@ -296,7 +296,7 @@ func TestDeleteCategory(t *testing.T) {
 
 	t.Run("should delete existing category", func(t *testing.T) {
 		// Create test category
-		categoryID, err := createTestCategory("Medical Delete Test", "Healthcare expenses", "#FF69B4")
+		categoryID, err := createTestCategory("Custom Medical", "Healthcare expenses", "#FF69B4")
 		assertNoError(t, err)
 
 		resp := makeRequest("DELETE", fmt.Sprintf("/api/categories/%s", categoryID), nil)
@@ -310,15 +310,15 @@ func TestDeleteCategory(t *testing.T) {
 		var categories []Category
 		assertNoError(t, parseJSONResponse(resp, &categories))
 
-		// Should have at least the 12 default categories, and the custom one should be gone
-		if len(categories) < 12 {
-			t.Errorf("Expected at least 12 categories (default) after deletion, got %d", len(categories))
+		// Should have only the 12 default categories left
+		if len(categories) != 12 {
+			t.Errorf("Expected 12 categories (default) after deletion, got %d", len(categories))
 		}
 
 		// Verify the custom category was deleted
 		for _, category := range categories {
-			if category.Name == "Medical Delete Test" {
-				t.Error("Expected Medical Delete Test category to be deleted, but it still exists")
+			if category.Name == "Custom Medical" {
+				t.Error("Expected Medical category to be deleted, but it still exists")
 			}
 		}
 	})
