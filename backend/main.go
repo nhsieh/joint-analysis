@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/csv"
 	"fmt"
 	"log"
@@ -20,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/lib/pq"
 )
 
 type Transaction struct {
@@ -28,7 +30,7 @@ type Transaction struct {
 	Amount          float64   `json:"amount"`
 	AssignedTo      []string  `json:"assigned_to"`
 	DateUploaded    time.Time `json:"date_uploaded"`
-	FileName        string    `json:"file_name"`
+	FileName        *string   `json:"file_name"`
 	TransactionDate *string   `json:"transaction_date"`
 	PostedDate      *string   `json:"posted_date"`
 	CardNumber      *string   `json:"card_number"`
@@ -62,6 +64,25 @@ type PersonTotal struct {
 type Total struct {
 	Person string  `json:"person"`
 	Total  float64 `json:"total"`
+}
+
+// Archive represents an archived collection of transactions
+type Archive struct {
+	ID               string        `json:"id"`
+	Name             string        `json:"name"`
+	Description      *string       `json:"description"`
+	ArchivedAt       time.Time     `json:"archived_at"`
+	TransactionCount int           `json:"transaction_count"`
+	TotalAmount      float64       `json:"total_amount"`
+	PersonTotals     []PersonTotal `json:"person_totals,omitempty"`
+	CreatedAt        time.Time     `json:"created_at"`
+	UpdatedAt        time.Time     `json:"updated_at"`
+}
+
+// ArchiveRequest represents the request structure for creating an archive
+type ArchiveRequest struct {
+	Name        string `json:"name" binding:"required"`
+	Description string `json:"description"`
 }
 
 var dbPool *pgxpool.Pool
@@ -235,8 +256,20 @@ func main() {
 		log.Println("Transactions will be created without categories")
 	}
 
-	// TODO: Update migrations to work with pgx connection
-	log.Println("Database migrations disabled during refactor - run manually if needed")
+	// Run database migrations
+	// Create a separate sql.DB connection for migrations (golang-migrate requires it)
+	migrationConnStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		dbHost, dbPort, dbUser, dbPassword, dbName)
+
+	migrationDB, err := sql.Open("postgres", migrationConnStr)
+	if err != nil {
+		log.Fatalf("Failed to create migration database connection: %v", err)
+	}
+	defer migrationDB.Close()
+
+	if err := runMigrations(migrationDB, "db/migrations"); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
 
 	r := gin.Default()
 
@@ -264,6 +297,9 @@ func main() {
 	r.DELETE("/api/categories/:id", deleteCategory)
 	r.PUT("/api/transactions/:id/category", updateTransactionCategory)
 	r.GET("/api/totals", getTotals)
+	r.POST("/api/archives", createArchive)
+	r.GET("/api/archives", getArchives)
+	r.GET("/api/archives/:id/transactions", getArchiveTransactions)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -331,7 +367,7 @@ func uploadCSV(c *gin.Context) {
 		transaction := Transaction{
 			Description: description,
 			Amount:      amount,
-			FileName:    fileName,
+			FileName:    &fileName,
 		}
 
 		// Add the additional fields if they exist
@@ -495,6 +531,20 @@ func convertTransactionFromUpdateRow(t generated.Transaction) Transaction {
 	)
 }
 
+func convertTransactionFromUpdateAssignmentRow(t generated.UpdateTransactionAssignmentRow) Transaction {
+	return convertTransactionFromFields(
+		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
+		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
+	)
+}
+
+func convertTransactionFromUpdateCategoryRow(t generated.UpdateTransactionCategoryRow) Transaction {
+	return convertTransactionFromFields(
+		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
+		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
+	)
+}
+
 func convertTransactionFromFields(
 	id pgtype.UUID,
 	description string,
@@ -514,7 +564,7 @@ func convertTransactionFromFields(
 		Description:  description,
 		AssignedTo:   []string{}, // Initialize as empty array
 		DateUploaded: dateUploaded.Time,
-		FileName:     "",
+		FileName:     nil,
 		CreatedAt:    createdAt.Time,
 		UpdatedAt:    updatedAt.Time,
 	}
@@ -537,7 +587,7 @@ func convertTransactionFromFields(
 
 	// Handle nullable fields
 	if fileName.Valid {
-		result.FileName = fileName.String
+		result.FileName = &fileName.String
 	}
 	if transactionDate.Valid {
 		dateStr := transactionDate.Time.Format("2006-01-02")
@@ -559,17 +609,17 @@ func convertTransactionFromFields(
 }
 
 func getTransactions(c *gin.Context) {
-	dbTransactions, err := queries.GetTransactions(context.Background())
+	dbTransactions, err := queries.GetActiveTransactions(context.Background())
 	if err != nil {
-		log.Printf("Error fetching transactions: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching transactions"})
+		log.Printf("Error fetching active transactions: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching active transactions"})
 		return
 	}
 
 	// Convert to API transaction format
 	var transactions []Transaction
 	for _, t := range dbTransactions {
-		transactions = append(transactions, convertTransactionFromGetRow(t))
+		transactions = append(transactions, convertTransactionFromActiveRow(t))
 	}
 
 	c.JSON(http.StatusOK, transactions)
@@ -615,7 +665,7 @@ func assignTransaction(c *gin.Context) {
 	}
 
 	// Convert and return the updated transaction
-	transaction := convertTransactionFromUpdateRow(dbTransaction)
+	transaction := convertTransactionFromUpdateAssignmentRow(dbTransaction)
 	c.JSON(http.StatusOK, transaction)
 }
 
@@ -773,7 +823,7 @@ func deletePerson(c *gin.Context) {
 }
 
 func getTotals(c *gin.Context) {
-	dbTotals, err := queries.GetTotalsByAssignedTo(context.Background())
+	dbTotals, err := queries.GetActiveTransactionTotals(context.Background())
 	if err != nil {
 		log.Printf("Error calculating totals: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error calculating totals"})
@@ -1020,6 +1070,324 @@ func updateTransactionCategory(c *gin.Context) {
 	}
 
 	// Convert and return the updated transaction
-	transaction := convertTransactionFromUpdateRow(dbTransaction)
+	transaction := convertTransactionFromUpdateCategoryRow(dbTransaction)
 	c.JSON(http.StatusOK, transaction)
+}
+
+// Archive handlers
+
+func createArchive(c *gin.Context) {
+	var request ArchiveRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Validate name
+	if err := validateName(request.Name); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get all active transactions to archive
+	activeTransactions, err := queries.GetActiveTransactions(context.Background())
+	if err != nil {
+		log.Printf("Error fetching active transactions: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching active transactions"})
+		return
+	}
+
+	if len(activeTransactions) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no active transactions"})
+		return
+	}
+
+	// Get current totals for active transactions (this gives us individual person totals)
+	activeTotals, err := queries.GetActiveTransactionTotals(context.Background())
+	if err != nil {
+		log.Printf("Error fetching active totals: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error calculating totals"})
+		return
+	}
+
+	// Calculate total amount (sum of all individual person totals)
+	var totalAmount float64
+	for _, total := range activeTotals {
+		totalValue, _ := total.Total.Float64Value()
+		totalAmount += totalValue.Float64
+	}
+
+	// Create archive
+	var descText pgtype.Text
+	if request.Description != "" {
+		descText = pgtype.Text{String: request.Description, Valid: true}
+	}
+
+	params := generated.CreateArchiveParams{
+		Name:             request.Name,
+		Description:      descText,
+		TransactionCount: int32(len(activeTransactions)),
+		TotalAmount:      pgtype.Numeric{},
+	}
+
+	// Convert float64 to pgtype.Numeric
+	amountBig := big.NewFloat(totalAmount)
+	amountStr := amountBig.Text('f', 2) // Format to 2 decimal places
+	err = params.TotalAmount.Scan(amountStr)
+	if err != nil {
+		log.Printf("Error converting total amount: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error processing total amount"})
+		return
+	}
+
+	archive, err := queries.CreateArchive(context.Background(), params)
+	if err != nil {
+		log.Printf("Error creating archive: %v", err)
+		statusCode, message := handleDatabaseError(err)
+		c.JSON(statusCode, gin.H{"error": message})
+		return
+	}
+
+	// Archive all active transactions
+	archiveID := pgtype.UUID{Bytes: archive.ID.Bytes, Valid: true}
+	err = queries.ArchiveTransactions(context.Background(), archiveID)
+	if err != nil {
+		log.Printf("Error archiving transactions: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error archiving transactions"})
+		return
+	}
+
+	// Store individual person totals for this archive
+	var personTotals []PersonTotal
+	for _, total := range activeTotals {
+		// Parse person ID from the total (we need to get it from people table)
+		person, err := queries.GetPersonByName(context.Background(), total.AssignedTo)
+		if err != nil {
+			log.Printf("Error finding person %s: %v", total.AssignedTo, err)
+			continue
+		}
+
+		totalValue, _ := total.Total.Float64Value()
+		totalNumeric := pgtype.Numeric{}
+		totalBig := big.NewFloat(totalValue.Float64)
+		totalStr := totalBig.Text('f', 2)
+		totalNumeric.Scan(totalStr)
+
+		_, err = queries.CreateArchivePersonTotal(context.Background(), generated.CreateArchivePersonTotalParams{
+			ArchiveID:   archiveID,
+			PersonID:    person.ID,
+			PersonName:  person.Name,
+			TotalAmount: totalNumeric,
+		})
+		if err != nil {
+			log.Printf("Error creating person total for %s: %v", person.Name, err)
+			continue
+		}
+
+		personTotals = append(personTotals, PersonTotal{
+			Name:  person.Name,
+			Total: totalValue.Float64,
+		})
+	}
+
+	// Convert and return the archive
+	archiveResponse := Archive{
+		ID:               uuid.UUID(archive.ID.Bytes).String(),
+		Name:             archive.Name,
+		ArchivedAt:       archive.ArchivedAt.Time,
+		TransactionCount: int(archive.TransactionCount),
+		PersonTotals:     personTotals,
+		CreatedAt:        archive.CreatedAt.Time,
+		UpdatedAt:        archive.UpdatedAt.Time,
+	}
+
+	if archive.Description.Valid {
+		archiveResponse.Description = &archive.Description.String
+	}
+
+	totalValue, _ := archive.TotalAmount.Float64Value()
+	archiveResponse.TotalAmount = totalValue.Float64
+
+	c.JSON(http.StatusCreated, archiveResponse)
+}
+
+func getArchives(c *gin.Context) {
+	dbArchives, err := queries.GetArchives(context.Background())
+	if err != nil {
+		log.Printf("Error fetching archives: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching archives"})
+		return
+	}
+
+	var archives []Archive
+	for _, dbArchive := range dbArchives {
+		// Get person totals for this archive
+		dbPersonTotals, err := queries.GetArchivePersonTotals(context.Background(), dbArchive.ID)
+		if err != nil {
+			log.Printf("Error fetching person totals for archive %s: %v", uuid.UUID(dbArchive.ID.Bytes).String(), err)
+			// Continue without person totals rather than failing
+		}
+
+		var personTotals []PersonTotal
+		for _, dbPersonTotal := range dbPersonTotals {
+			totalValue, _ := dbPersonTotal.TotalAmount.Float64Value()
+			personTotals = append(personTotals, PersonTotal{
+				Name:  dbPersonTotal.PersonName,
+				Total: totalValue.Float64,
+			})
+		}
+
+		archive := Archive{
+			ID:               uuid.UUID(dbArchive.ID.Bytes).String(),
+			Name:             dbArchive.Name,
+			ArchivedAt:       dbArchive.ArchivedAt.Time,
+			TransactionCount: int(dbArchive.TransactionCount),
+			PersonTotals:     personTotals,
+			CreatedAt:        dbArchive.CreatedAt.Time,
+			UpdatedAt:        dbArchive.UpdatedAt.Time,
+		}
+
+		if dbArchive.Description.Valid {
+			archive.Description = &dbArchive.Description.String
+		}
+
+		totalValue, _ := dbArchive.TotalAmount.Float64Value()
+		archive.TotalAmount = totalValue.Float64
+
+		archives = append(archives, archive)
+	}
+
+	c.JSON(http.StatusOK, archives)
+}
+
+func getArchiveTransactions(c *gin.Context) {
+	id := c.Param("id")
+
+	// Parse archive UUID
+	archiveUUID, err := uuid.Parse(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid archive ID"})
+		return
+	}
+
+	// Check if archive exists
+	_, err = queries.GetArchiveByID(context.Background(), pgtype.UUID{Bytes: archiveUUID, Valid: true})
+	if err != nil {
+		log.Printf("Error fetching archive: %v", err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Archive not found"})
+		return
+	}
+
+	// Get archived transactions
+	dbTransactions, err := queries.GetArchivedTransactions(context.Background(), pgtype.UUID{Bytes: archiveUUID, Valid: true})
+	if err != nil {
+		log.Printf("Error fetching archived transactions: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching archived transactions"})
+		return
+	}
+
+	var transactions []Transaction
+	for _, t := range dbTransactions {
+		transactions = append(transactions, convertTransactionFromArchivedRow(t))
+	}
+
+	c.JSON(http.StatusOK, transactions)
+}
+
+// Helper function to convert archived transaction row to Transaction struct
+func convertTransactionFromArchivedRow(t generated.GetArchivedTransactionsRow) Transaction {
+	transaction := Transaction{
+		ID:          uuid.UUID(t.ID.Bytes).String(),
+		Description: t.Description,
+		CreatedAt:   t.CreatedAt.Time,
+		UpdatedAt:   t.UpdatedAt.Time,
+	}
+
+	// Convert amount
+	if amountValue, err := t.Amount.Float64Value(); err == nil {
+		transaction.Amount = amountValue.Float64
+	}
+
+	// Convert assigned_to array
+	var assignedTo []string
+	for _, personUUID := range t.AssignedTo {
+		if personUUID.Valid {
+			assignedTo = append(assignedTo, uuid.UUID(personUUID.Bytes).String())
+		}
+	}
+	transaction.AssignedTo = assignedTo
+
+	// Convert optional fields
+	if t.DateUploaded.Valid {
+		transaction.DateUploaded = t.DateUploaded.Time
+	}
+	if t.FileName.Valid {
+		transaction.FileName = &t.FileName.String
+	}
+	if t.TransactionDate.Valid {
+		dateStr := t.TransactionDate.Time.Format("2006-01-02")
+		transaction.TransactionDate = &dateStr
+	}
+	if t.PostedDate.Valid {
+		dateStr := t.PostedDate.Time.Format("2006-01-02")
+		transaction.PostedDate = &dateStr
+	}
+	if t.CardNumber.Valid {
+		transaction.CardNumber = &t.CardNumber.String
+	}
+	if t.CategoryID.Valid {
+		categoryID := uuid.UUID(t.CategoryID.Bytes).String()
+		transaction.CategoryID = &categoryID
+	}
+
+	return transaction
+}
+
+// Helper function to convert active transaction row to Transaction struct
+func convertTransactionFromActiveRow(t generated.GetActiveTransactionsRow) Transaction {
+	transaction := Transaction{
+		ID:          uuid.UUID(t.ID.Bytes).String(),
+		Description: t.Description,
+		CreatedAt:   t.CreatedAt.Time,
+		UpdatedAt:   t.UpdatedAt.Time,
+	}
+
+	// Convert amount
+	if amountValue, err := t.Amount.Float64Value(); err == nil {
+		transaction.Amount = amountValue.Float64
+	}
+
+	// Convert assigned_to array
+	var assignedTo []string
+	for _, personUUID := range t.AssignedTo {
+		if personUUID.Valid {
+			assignedTo = append(assignedTo, uuid.UUID(personUUID.Bytes).String())
+		}
+	}
+	transaction.AssignedTo = assignedTo
+
+	// Convert optional fields
+	if t.DateUploaded.Valid {
+		transaction.DateUploaded = t.DateUploaded.Time
+	}
+	if t.FileName.Valid {
+		transaction.FileName = &t.FileName.String
+	}
+	if t.TransactionDate.Valid {
+		dateStr := t.TransactionDate.Time.Format("2006-01-02")
+		transaction.TransactionDate = &dateStr
+	}
+	if t.PostedDate.Valid {
+		dateStr := t.PostedDate.Time.Format("2006-01-02")
+		transaction.PostedDate = &dateStr
+	}
+	if t.CardNumber.Valid {
+		transaction.CardNumber = &t.CardNumber.String
+	}
+	if t.CategoryID.Valid {
+		categoryID := uuid.UUID(t.CategoryID.Bytes).String()
+		transaction.CategoryID = &categoryID
+	}
+
+	return transaction
 }

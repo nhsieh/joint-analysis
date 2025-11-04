@@ -136,15 +136,26 @@ func setupTestRouter() {
 	testRouter.DELETE("/api/categories/:id", deleteCategory)
 	testRouter.PUT("/api/transactions/:id/category", updateTransactionCategory)
 	testRouter.GET("/api/totals", getTotals)
+	testRouter.POST("/api/archives", createArchive)
+	testRouter.GET("/api/archives", getArchives)
+	testRouter.GET("/api/archives/:id/transactions", getArchiveTransactions)
 }
 
 // cleanupTestData removes all data from test tables
 func cleanupTestData() error {
 	ctx := context.Background()
 
-	// Clean in reverse dependency order
+	// Clean in reverse dependency order (child tables first)
+	if _, err := testDB.Exec(ctx, "DELETE FROM archive_person_totals"); err != nil {
+		return fmt.Errorf("failed to clean archive_person_totals: %w", err)
+	}
+
 	if _, err := testDB.Exec(ctx, "DELETE FROM transactions"); err != nil {
 		return fmt.Errorf("failed to clean transactions: %w", err)
+	}
+
+	if _, err := testDB.Exec(ctx, "DELETE FROM archives"); err != nil {
+		return fmt.Errorf("failed to clean archives: %w", err)
 	}
 
 	if _, err := testDB.Exec(ctx, "DELETE FROM categories"); err != nil {

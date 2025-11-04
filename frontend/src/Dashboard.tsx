@@ -24,6 +24,7 @@ import {
   DeleteOutlined,
   ClearOutlined,
   PieChartOutlined,
+  InboxOutlined,
 } from '@ant-design/icons';
 import { Pie } from '@ant-design/charts';
 import { UploadProps, RcFile } from 'antd/es/upload';
@@ -74,6 +75,7 @@ const Dashboard: React.FC = () => {
   const [newPersonName, setNewPersonName] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -258,6 +260,30 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Error clearing transactions:', error);
       message.error('Error clearing transactions');
+    }
+  };
+
+  const archiveAllTransactions = async () => {
+    if (transactions.length === 0) {
+      message.warning('No transactions to archive');
+      return;
+    }
+
+    try {
+      setArchiving(true);
+      const archiveName = `Archive ${new Date().toLocaleDateString()}`;
+      await axios.post(`${API_URL}/api/archives`, {
+        name: archiveName,
+        description: `Archived on ${new Date().toLocaleString()}`
+      });
+      message.success('Transactions archived successfully!');
+      fetchTransactions();
+      fetchTotals();
+    } catch (error) {
+      console.error('Error archiving transactions:', error);
+      message.error('Error archiving transactions');
+    } finally {
+      setArchiving(false);
     }
   };
 
@@ -688,6 +714,15 @@ const Dashboard: React.FC = () => {
                 Transactions ({transactions.length})
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
+                <Button
+                  icon={<InboxOutlined />}
+                  size="middle"
+                  onClick={archiveAllTransactions}
+                  disabled={transactions.length === 0}
+                  loading={archiving}
+                >
+                  Archive
+                </Button>
                 <Button
                   icon={<ClearOutlined />}
                   danger

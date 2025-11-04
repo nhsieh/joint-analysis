@@ -96,8 +96,10 @@ func TestUploadCSV(t *testing.T) {
 				if transaction.Amount != 26.45 {
 					t.Errorf("Expected amount 26.45, got %f", transaction.Amount)
 				}
-				if transaction.FileName != "test_transactions.csv" {
-					t.Errorf("Expected filename test_transactions.csv, got %s", transaction.FileName)
+				if transaction.FileName == nil {
+					t.Errorf("Expected filename test_transactions.csv, got nil")
+				} else if *transaction.FileName != "test_transactions.csv" {
+					t.Errorf("Expected filename test_transactions.csv, got %s", *transaction.FileName)
 				}
 			}
 		}
