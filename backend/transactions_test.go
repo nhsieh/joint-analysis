@@ -5,7 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -388,5 +391,327 @@ func TestUpdateTransactionCategory(t *testing.T) {
 		resp := makeRequest("PUT", fmt.Sprintf("/api/transactions/%s/category", transactionID), bytes.NewBufferString("invalid json"))
 
 		assertStatusCode(t, http.StatusBadRequest, resp.Code)
+	})
+}
+
+// createCSVFile creates a multipart form with a CSV file
+func createCSVFile(t *testing.T, filename, content string) (*bytes.Buffer, string) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+
+	part, err := writer.CreateFormFile("file", filename)
+	if err != nil {
+		t.Fatalf("Failed to create form file: %v", err)
+	}
+
+	_, err = part.Write([]byte(content))
+	if err != nil {
+		t.Fatalf("Failed to write to form file: %v", err)
+	}
+
+	err = writer.Close()
+	if err != nil {
+		t.Fatalf("Failed to close writer: %v", err)
+	}
+
+	return &body, writer.FormDataContentType()
+}
+
+// makeRequestWithCustomRequest helper to use existing router with custom request
+func makeRequestWithCustomRequest(req *http.Request) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	testRouter.ServeHTTP(recorder, req)
+	return recorder
+}
+
+// containsIgnoreCase helper to check string contains case-insensitively
+func containsIgnoreCase(str, substr string) bool {
+	return strings.Contains(strings.ToLower(str), strings.ToLower(substr))
+}
+
+func TestUploadCSV(t *testing.T) {
+	// Clean data before all CSV tests
+	if err := cleanupTestData(); err != nil {
+		t.Fatalf("Failed to cleanup test data: %v", err)
+	}
+
+	// Valid CSV content with the expected 7-column format
+	validCSV := `Transaction Date,Posted Date,Card No.,Description,Category,Debit,Credit
+2023-01-01,2023-01-01,****1234,Coffee,Food,5.50,
+2023-01-02,2023-01-02,****1234,Lunch,Food,12.00,
+2023-01-03,2023-01-03,****1234,Gas,Transport,,30.00`
+
+	t.Run("should upload valid CSV file", func(t *testing.T) {
+		body, contentType := createCSVFile(t, "test.csv", validCSV)
+
+		req, err := http.NewRequest("POST", "/api/upload-csv", body)
+		assertNoError(t, err)
+
+		req.Header.Set("Content-Type", contentType)
+
+		resp := makeRequestWithCustomRequest(req)
+
+		assertStatusCode(t, http.StatusOK, resp.Code)
+
+		var result map[string]interface{}
+		err = json.Unmarshal(resp.Body.Bytes(), &result)
+		assertNoError(t, err)
+
+		// Check that we got the expected number of transactions
+		transactions, ok := result["transactions"].([]interface{})
+		if !ok {
+			t.Fatal("Expected transactions array in response")
+		}
+		if len(transactions) != 3 {
+			t.Errorf("Expected 3 transactions, got %d", len(transactions))
+		}
+	})
+
+	t.Run("should accept simple text file as CSV", func(t *testing.T) {
+		// Clean data before test
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		body, contentType := createCSVFile(t, "test.txt", "not a csv")
+
+		req, err := http.NewRequest("POST", "/api/upload-csv", body)
+		assertNoError(t, err)
+
+		req.Header.Set("Content-Type", contentType)
+
+		resp := makeRequestWithCustomRequest(req)
+
+		// The CSV parser accepts simple text as a CSV with 0 valid records
+		assertStatusCode(t, http.StatusOK, resp.Code)
+
+		var result map[string]interface{}
+		err = json.Unmarshal(resp.Body.Bytes(), &result)
+		assertNoError(t, err)
+
+		transactions, ok := result["transactions"].([]interface{})
+		if !ok {
+			t.Fatal("Expected transactions array in response")
+		}
+		if len(transactions) != 0 {
+			t.Errorf("Expected 0 transactions for non-CSV content, got %d", len(transactions))
+		}
+	})
+
+	t.Run("should reject request with no file", func(t *testing.T) {
+		// Clean data before test
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		req, err := http.NewRequest("POST", "/api/upload-csv", bytes.NewBuffer([]byte{}))
+		assertNoError(t, err)
+
+		resp := makeRequestWithCustomRequest(req)
+
+		assertStatusCode(t, http.StatusBadRequest, resp.Code)
+	})
+
+	t.Run("should handle invalid CSV content", func(t *testing.T) {
+		// Clean data before test
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		invalidCSV := `Transaction Date,Posted Date,Card No.,Description,Category,Debit,Credit
+2023-01-01,2023-01-01,****1234,Coffee,Food,invalid-amount,
+2023-01-02,2023-01-02,****1234,Lunch,Food,12.00,`
+
+		body, contentType := createCSVFile(t, "test.csv", invalidCSV)
+
+		req, err := http.NewRequest("POST", "/api/upload-csv", body)
+		assertNoError(t, err)
+
+		req.Header.Set("Content-Type", contentType)
+
+		resp := makeRequestWithCustomRequest(req)
+
+		// Should still succeed but skip invalid rows
+		assertStatusCode(t, http.StatusOK, resp.Code)
+
+		var result map[string]interface{}
+		err = json.Unmarshal(resp.Body.Bytes(), &result)
+		assertNoError(t, err)
+
+		transactions, ok := result["transactions"].([]interface{})
+		if !ok {
+			t.Fatal("Expected transactions array in response")
+		}
+		// Should only have 1 valid transaction (the lunch one)
+		if len(transactions) != 1 {
+			t.Errorf("Expected 1 valid transaction, got %d", len(transactions))
+		}
+	})
+
+	t.Run("should handle empty CSV file", func(t *testing.T) {
+		// Clean data before test
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		body, contentType := createCSVFile(t, "empty.csv", "")
+
+		req, err := http.NewRequest("POST", "/api/upload-csv", body)
+		assertNoError(t, err)
+
+		req.Header.Set("Content-Type", contentType)
+
+		resp := makeRequestWithCustomRequest(req)
+
+		// Empty CSV is accepted and returns an empty transactions array
+		assertStatusCode(t, http.StatusOK, resp.Code)
+
+		var result map[string]interface{}
+		err = json.Unmarshal(resp.Body.Bytes(), &result)
+		assertNoError(t, err)
+
+		transactions, ok := result["transactions"].([]interface{})
+		if !ok {
+			t.Fatal("Expected transactions array in response")
+		}
+		if len(transactions) != 0 {
+			t.Errorf("Expected 0 transactions for empty CSV, got %d", len(transactions))
+		}
+	})
+
+	t.Run("should handle CSV with only headers", func(t *testing.T) {
+		// Clean data before test
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		headerOnlyCSV := "Transaction Date,Posted Date,Card No.,Description,Category,Debit,Credit"
+
+		body, contentType := createCSVFile(t, "headers.csv", headerOnlyCSV)
+
+		req, err := http.NewRequest("POST", "/api/upload-csv", body)
+		assertNoError(t, err)
+
+		req.Header.Set("Content-Type", contentType)
+
+		resp := makeRequestWithCustomRequest(req)
+
+		assertStatusCode(t, http.StatusOK, resp.Code)
+
+		var result map[string]interface{}
+		err = json.Unmarshal(resp.Body.Bytes(), &result)
+		assertNoError(t, err)
+
+		transactions, ok := result["transactions"].([]interface{})
+		if !ok {
+			t.Fatal("Expected transactions array in response")
+		}
+		if len(transactions) != 0 {
+			t.Errorf("Expected 0 transactions for headers-only CSV, got %d", len(transactions))
+		}
+	})
+
+	t.Run("should skip duplicate transactions", func(t *testing.T) {
+		// Clean data before test
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		duplicateCSV := `Transaction Date,Posted Date,Card No.,Description,Category,Debit,Credit
+2023-01-01,2023-01-01,****1234,Coffee,Food,5.50,
+2023-01-02,2023-01-02,****1234,Lunch,Food,12.00,`
+
+		// First upload
+		body1, contentType1 := createCSVFile(t, "duplicate.csv", duplicateCSV)
+		req1, err := http.NewRequest("POST", "/api/upload-csv", body1)
+		assertNoError(t, err)
+		req1.Header.Set("Content-Type", contentType1)
+
+		resp1 := makeRequestWithCustomRequest(req1)
+		assertStatusCode(t, http.StatusOK, resp1.Code)
+
+		// Verify first upload worked
+		var result1 map[string]interface{}
+		err = json.Unmarshal(resp1.Body.Bytes(), &result1)
+		assertNoError(t, err)
+
+		transactions1, ok := result1["transactions"].([]interface{})
+		if !ok {
+			t.Fatal("Expected transactions array in response")
+		}
+		if len(transactions1) != 2 {
+			t.Errorf("Expected 2 transactions from first upload, got %d", len(transactions1))
+		}
+
+		// Second upload (duplicates should be skipped, not rejected)
+		body2, contentType2 := createCSVFile(t, "duplicate2.csv", duplicateCSV)
+		req2, err := http.NewRequest("POST", "/api/upload-csv", body2)
+		assertNoError(t, err)
+		req2.Header.Set("Content-Type", contentType2)
+
+		resp2 := makeRequestWithCustomRequest(req2)
+		assertStatusCode(t, http.StatusOK, resp2.Code)
+
+		var result map[string]interface{}
+		err = json.Unmarshal(resp2.Body.Bytes(), &result)
+		assertNoError(t, err)
+
+		transactions, ok := result["transactions"].([]interface{})
+		if !ok {
+			t.Fatal("Expected transactions array in response")
+		}
+		// Should be 0 since all transactions are duplicates
+		if len(transactions) != 0 {
+			t.Errorf("Expected 0 transactions due to duplicates, got %d", len(transactions))
+		}
+	})
+
+	t.Run("should handle malformed multipart request", func(t *testing.T) {
+		// Clean data before test
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		req, err := http.NewRequest("POST", "/api/upload-csv", bytes.NewBufferString("malformed multipart"))
+		assertNoError(t, err)
+		req.Header.Set("Content-Type", "multipart/form-data")
+
+		resp := makeRequestWithCustomRequest(req)
+
+		assertStatusCode(t, http.StatusBadRequest, resp.Code)
+	})
+
+	t.Run("should handle missing required CSV columns", func(t *testing.T) {
+		// Clean data before test
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		missingColumnsCSV := `Transaction Date,Description
+2023-01-01,Coffee
+2023-01-02,Lunch`
+
+		body, contentType := createCSVFile(t, "missing_columns.csv", missingColumnsCSV)
+
+		req, err := http.NewRequest("POST", "/api/upload-csv", body)
+		assertNoError(t, err)
+		req.Header.Set("Content-Type", contentType)
+
+		resp := makeRequestWithCustomRequest(req)
+
+		// Should still return 200 but with 0 transactions since rows don't have enough columns
+		assertStatusCode(t, http.StatusOK, resp.Code)
+
+		var result map[string]interface{}
+		err = json.Unmarshal(resp.Body.Bytes(), &result)
+		assertNoError(t, err)
+
+		transactions, ok := result["transactions"].([]interface{})
+		if !ok {
+			t.Fatal("Expected transactions array in response")
+		}
+		if len(transactions) != 0 {
+			t.Errorf("Expected 0 transactions for insufficient columns, got %d", len(transactions))
+		}
 	})
 }
