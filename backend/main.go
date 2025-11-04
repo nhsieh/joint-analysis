@@ -650,6 +650,18 @@ func getTransactions(c *gin.Context) {
 	c.JSON(http.StatusOK, transactions)
 }
 
+// @Summary Assign transaction to person
+// @Description Assign a specific transaction to one or more people
+// @Tags transactions
+// @Accept json
+// @Produce json
+// @Param id path string true "Transaction ID"
+// @Param assignment body object{assigned_to=[]string} true "Assignment data with array of person names"
+// @Success 200 {object} Transaction "Updated transaction with assignments"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 404 {object} map[string]interface{} "Transaction not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/transactions/{id}/assign [put]
 func assignTransaction(c *gin.Context) {
 	id := c.Param("id")
 	var request struct {
@@ -694,6 +706,16 @@ func assignTransaction(c *gin.Context) {
 	c.JSON(http.StatusOK, transaction)
 }
 
+// @Summary Delete single transaction
+// @Description Delete a specific transaction by ID
+// @Tags transactions
+// @Produce json
+// @Param id path string true "Transaction ID"
+// @Success 200 {object} map[string]interface{} "Transaction deleted successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 404 {object} map[string]interface{} "Transaction not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/transactions/{id} [delete]
 func deleteTransaction(c *gin.Context) {
 	transactionID := c.Param("id")
 	if transactionID == "" {
@@ -723,6 +745,13 @@ func deleteTransaction(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Transaction deleted successfully"})
 }
 
+// @Summary Delete all transactions
+// @Description Clear all active transactions from the database
+// @Tags transactions
+// @Produce json
+// @Success 200 {object} map[string]interface{} "All transactions cleared successfully"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/transactions [delete]
 func clearAllTransactions(c *gin.Context) {
 	err := queries.DeleteAllTransactions(context.Background())
 	if err != nil {
@@ -766,6 +795,17 @@ func getPeople(c *gin.Context) {
 	c.JSON(http.StatusOK, people)
 }
 
+// @Summary Create person
+// @Description Create a new person in the system
+// @Tags people
+// @Accept json
+// @Produce json
+// @Param person body Person true "Person data (name required, email optional)"
+// @Success 201 {object} Person "Created person"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 409 {object} map[string]interface{} "Person already exists"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/people [post]
 func createPerson(c *gin.Context) {
 	var personRequest Person
 	if err := c.ShouldBindJSON(&personRequest); err != nil {
@@ -814,6 +854,16 @@ func createPerson(c *gin.Context) {
 	c.JSON(http.StatusCreated, person)
 }
 
+// @Summary Delete person
+// @Description Delete a specific person by ID
+// @Tags people
+// @Produce json
+// @Param id path string true "Person ID"
+// @Success 200 {object} map[string]interface{} "Person deleted successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 404 {object} map[string]interface{} "Person not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/people/{id} [delete]
 func deletePerson(c *gin.Context) {
 	id := c.Param("id")
 
@@ -887,6 +937,13 @@ func getTotals(c *gin.Context) {
 	c.JSON(http.StatusOK, totals)
 }
 
+// @Summary Get all categories
+// @Description Retrieve all categories from the database
+// @Tags categories
+// @Produce json
+// @Success 200 {array} Category "List of categories"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/categories [get]
 func getCategories(c *gin.Context) {
 	dbCategories, err := queries.GetCategories(context.Background())
 	if err != nil {
@@ -917,6 +974,17 @@ func getCategories(c *gin.Context) {
 	c.JSON(http.StatusOK, categories)
 }
 
+// @Summary Create category
+// @Description Create a new category in the system
+// @Tags categories
+// @Accept json
+// @Produce json
+// @Param category body Category true "Category data (name required, description and color optional)"
+// @Success 201 {object} Category "Created category"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 409 {object} map[string]interface{} "Category already exists"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/categories [post]
 func createCategory(c *gin.Context) {
 	var category Category
 	if err := c.ShouldBindJSON(&category); err != nil {
@@ -977,6 +1045,18 @@ func createCategory(c *gin.Context) {
 	c.JSON(http.StatusCreated, resultCategory)
 }
 
+// @Summary Update category
+// @Description Update an existing category
+// @Tags categories
+// @Accept json
+// @Produce json
+// @Param id path string true "Category ID"
+// @Param category body Category true "Updated category data"
+// @Success 200 {object} Category "Updated category"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 404 {object} map[string]interface{} "Category not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/categories/{id} [put]
 func updateCategory(c *gin.Context) {
 	id := c.Param("id")
 	var category Category
@@ -1032,6 +1112,16 @@ func updateCategory(c *gin.Context) {
 	c.JSON(http.StatusOK, resultCategory)
 }
 
+// @Summary Delete category
+// @Description Delete a specific category by ID
+// @Tags categories
+// @Produce json
+// @Param id path string true "Category ID"
+// @Success 200 {object} map[string]interface{} "Category deleted successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 404 {object} map[string]interface{} "Category not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/categories/{id} [delete]
 func deleteCategory(c *gin.Context) {
 	id := c.Param("id")
 
@@ -1064,6 +1154,18 @@ func deleteCategory(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Category deleted successfully"})
 }
 
+// @Summary Update transaction category
+// @Description Update the category of a specific transaction
+// @Tags transactions
+// @Accept json
+// @Produce json
+// @Param id path string true "Transaction ID"
+// @Param category body object{category_id=string} true "Category data with category_id (null to remove category)"
+// @Success 200 {object} map[string]interface{} "Category updated successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 404 {object} map[string]interface{} "Transaction not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/transactions/{id}/category [put]
 func updateTransactionCategory(c *gin.Context) {
 	id := c.Param("id")
 	var request struct {
@@ -1115,6 +1217,16 @@ func updateTransactionCategory(c *gin.Context) {
 
 // Archive handlers
 
+// @Summary Create archive
+// @Description Create a new archive of all current active transactions
+// @Tags archives
+// @Accept json
+// @Produce json
+// @Param archive body ArchiveRequest true "Archive data with description"
+// @Success 201 {object} Archive "Created archive with transaction totals"
+// @Failure 400 {object} map[string]interface{} "Bad request (no transactions to archive or invalid data)"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/archives [post]
 func createArchive(c *gin.Context) {
 	var request ArchiveRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -1241,6 +1353,13 @@ func createArchive(c *gin.Context) {
 	c.JSON(http.StatusCreated, archiveResponse)
 }
 
+// @Summary Get all archives
+// @Description Retrieve all archives from the database with their person totals
+// @Tags archives
+// @Produce json
+// @Success 200 {array} Archive "List of archives with transaction counts and person totals"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/archives [get]
 func getArchives(c *gin.Context) {
 	dbArchives, err := queries.GetArchives(context.Background())
 	if err != nil {
@@ -1289,6 +1408,16 @@ func getArchives(c *gin.Context) {
 	c.JSON(http.StatusOK, archives)
 }
 
+// @Summary Get archive transactions
+// @Description Get all transactions for a specific archive by archive ID
+// @Tags archives
+// @Produce json
+// @Param id path string true "Archive ID"
+// @Success 200 {array} Transaction "List of archived transactions"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 404 {object} map[string]interface{} "Archive not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/archives/{id}/transactions [get]
 func getArchiveTransactions(c *gin.Context) {
 	id := c.Param("id")
 
