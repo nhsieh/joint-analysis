@@ -15,7 +15,7 @@ func TestGetCategories(t *testing.T) {
 		t.Fatalf("Failed to cleanup test data: %v", err)
 	}
 
-	t.Run("should return empty list when no categories exist", func(t *testing.T) {
+	t.Run("should return default categories when no custom categories exist", func(t *testing.T) {
 		resp := makeRequest("GET", "/api/categories", nil)
 
 		assertStatusCode(t, http.StatusOK, resp.Code)
@@ -23,17 +23,18 @@ func TestGetCategories(t *testing.T) {
 		var categories []Category
 		assertNoError(t, parseJSONResponse(resp, &categories))
 
-		if len(categories) != 0 {
-			t.Errorf("Expected empty list, got %d categories", len(categories))
+		// Should have the 12 default categories from initial migration
+		if len(categories) != 12 {
+			t.Errorf("Expected 12 default categories, got %d categories", len(categories))
 		}
 	})
 
 	t.Run("should return list of categories when they exist", func(t *testing.T) {
-		// Create test categories
-		_, err := createTestCategory("Food", "Restaurant and grocery expenses", "#FF5733")
+		// Create test categories with unique names
+		_, err := createTestCategory("Custom Food", "Restaurant and grocery expenses", "#FF5733")
 		assertNoError(t, err)
 
-		_, err = createTestCategory("Transportation", "", "#33C1FF")
+		_, err = createTestCategory("Custom Transportation", "", "#33C1FF")
 		assertNoError(t, err)
 
 		resp := makeRequest("GET", "/api/categories", nil)
@@ -43,34 +44,35 @@ func TestGetCategories(t *testing.T) {
 		var categories []Category
 		assertNoError(t, parseJSONResponse(resp, &categories))
 
-		if len(categories) != 2 {
-			t.Errorf("Expected 2 categories, got %d", len(categories))
+		// Should have 12 default + 2 custom = 14 categories
+		if len(categories) != 14 {
+			t.Errorf("Expected 14 categories (12 default + 2 custom), got %d", len(categories))
 		}
 
-		// Verify category data
+		// Verify our custom category data
 		found := make(map[string]bool)
 		for _, category := range categories {
 			found[category.Name] = true
-			if category.Name == "Food" {
+			if category.Name == "Custom Food" {
 				if category.Description == nil || *category.Description != "Restaurant and grocery expenses" {
-					t.Errorf("Expected Food description to be 'Restaurant and grocery expenses', got %v", category.Description)
+					t.Errorf("Expected Custom Food description to be 'Restaurant and grocery expenses', got %v", category.Description)
 				}
 				if category.Color == nil || *category.Color != "#FF5733" {
-					t.Errorf("Expected Food color to be '#FF5733', got %v", category.Color)
+					t.Errorf("Expected Custom Food color to be '#FF5733', got %v", category.Color)
 				}
 			}
-			if category.Name == "Transportation" {
+			if category.Name == "Custom Transportation" {
 				if category.Description != nil {
-					t.Errorf("Expected Transportation description to be nil, got %v", category.Description)
+					t.Errorf("Expected Custom Transportation description to be nil, got %v", category.Description)
 				}
 				if category.Color == nil || *category.Color != "#33C1FF" {
-					t.Errorf("Expected Transportation color to be '#33C1FF', got %v", category.Color)
+					t.Errorf("Expected Custom Transportation color to be '#33C1FF', got %v", category.Color)
 				}
 			}
 		}
 
-		if !found["Food"] || !found["Transportation"] {
-			t.Error("Expected to find both Food and Transportation categories")
+		if !found["Custom Food"] || !found["Custom Transportation"] {
+			t.Error("Expected to find both Custom Food and Custom Transportation categories")
 		}
 	})
 }
@@ -84,7 +86,7 @@ func TestCreateCategory(t *testing.T) {
 
 	t.Run("should create category with all fields", func(t *testing.T) {
 		requestBody := map[string]interface{}{
-			"name":        "Entertainment",
+			"name":        "Custom Entertainment",
 			"description": "Movies, games, and fun activities",
 			"color":       "#FF33E6",
 		}
@@ -99,8 +101,8 @@ func TestCreateCategory(t *testing.T) {
 		var category Category
 		assertNoError(t, parseJSONResponse(resp, &category))
 
-		if category.Name != "Entertainment" {
-			t.Errorf("Expected name 'Entertainment', got '%s'", category.Name)
+		if category.Name != "Custom Entertainment" {
+			t.Errorf("Expected name 'Custom Entertainment', got '%s'", category.Name)
 		}
 
 		if category.Description == nil || *category.Description != "Movies, games, and fun activities" {
@@ -118,7 +120,7 @@ func TestCreateCategory(t *testing.T) {
 
 	t.Run("should create category with minimal fields", func(t *testing.T) {
 		requestBody := map[string]interface{}{
-			"name": "Utilities",
+			"name": "Custom Utilities",
 		}
 
 		body, err := json.Marshal(requestBody)
@@ -131,8 +133,8 @@ func TestCreateCategory(t *testing.T) {
 		var category Category
 		assertNoError(t, parseJSONResponse(resp, &category))
 
-		if category.Name != "Utilities" {
-			t.Errorf("Expected name 'Utilities', got '%s'", category.Name)
+		if category.Name != "Custom Utilities" {
+			t.Errorf("Expected name 'Custom Utilities', got '%s'", category.Name)
 		}
 
 		if category.Description != nil {
@@ -173,12 +175,12 @@ func TestCreateCategory(t *testing.T) {
 
 	t.Run("should return 409 for duplicate name", func(t *testing.T) {
 		// Create first category
-		_, err := createTestCategory("Shopping", "Retail purchases", "#33FF57")
+		_, err := createTestCategory("Test Shopping", "Retail purchases", "#33FF57")
 		assertNoError(t, err)
 
 		// Try to create duplicate
 		requestBody := map[string]interface{}{
-			"name":        "Shopping",
+			"name":        "Test Shopping",
 			"description": "Online purchases",
 		}
 
@@ -213,8 +215,8 @@ func TestUpdateCategory(t *testing.T) {
 	}
 
 	t.Run("should update existing category", func(t *testing.T) {
-		// Create test category
-		categoryID, err := createTestCategory("Travel", "Trip expenses", "#FFD700")
+		// Create test category with unique name
+		categoryID, err := createTestCategory("Custom Travel", "Trip expenses", "#FFD700")
 		assertNoError(t, err)
 
 		requestBody := map[string]interface{}{
@@ -294,7 +296,7 @@ func TestDeleteCategory(t *testing.T) {
 
 	t.Run("should delete existing category", func(t *testing.T) {
 		// Create test category
-		categoryID, err := createTestCategory("Medical", "Healthcare expenses", "#FF69B4")
+		categoryID, err := createTestCategory("Medical Delete Test", "Healthcare expenses", "#FF69B4")
 		assertNoError(t, err)
 
 		resp := makeRequest("DELETE", fmt.Sprintf("/api/categories/%s", categoryID), nil)
@@ -308,8 +310,16 @@ func TestDeleteCategory(t *testing.T) {
 		var categories []Category
 		assertNoError(t, parseJSONResponse(resp, &categories))
 
-		if len(categories) != 0 {
-			t.Errorf("Expected 0 categories after deletion, got %d", len(categories))
+		// Should have at least the 12 default categories, and the custom one should be gone
+		if len(categories) < 12 {
+			t.Errorf("Expected at least 12 categories (default) after deletion, got %d", len(categories))
+		}
+
+		// Verify the custom category was deleted
+		for _, category := range categories {
+			if category.Name == "Medical Delete Test" {
+				t.Error("Expected Medical Delete Test category to be deleted, but it still exists")
+			}
 		}
 	})
 

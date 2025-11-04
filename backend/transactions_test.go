@@ -300,8 +300,8 @@ func TestUpdateTransactionCategory(t *testing.T) {
 	}
 
 	t.Run("should update transaction category successfully", func(t *testing.T) {
-		// Create test category
-		categoryID, err := createTestCategory("Food", "Restaurant and grocery expenses", "#FF5733")
+		// Create test category with unique name
+		categoryID, err := createTestCategory("Custom Food", "Restaurant and grocery expenses", "#FF5733")
 		assertNoError(t, err)
 
 		// Create test transaction

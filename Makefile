@@ -18,6 +18,9 @@ help:
 	@echo "  generate-db      - Generate database code using sqlc"
 	@echo "  clean            - Remove all containers and volumes"
 
+test:
+	pushd backend && go test -v ./... && popd
+
 # Build all containers
 build:
 	docker-compose build

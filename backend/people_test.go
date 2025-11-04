@@ -15,7 +15,7 @@ func TestGetPeople(t *testing.T) {
 		t.Fatalf("Failed to cleanup test data: %v", err)
 	}
 
-	t.Run("should return empty list when no people exist", func(t *testing.T) {
+	t.Run("should return default person when no custom people exist", func(t *testing.T) {
 		resp := makeRequest("GET", "/api/people", nil)
 
 		assertStatusCode(t, http.StatusOK, resp.Code)
@@ -23,12 +23,17 @@ func TestGetPeople(t *testing.T) {
 		var people []Person
 		assertNoError(t, parseJSONResponse(resp, &people))
 
-		if len(people) != 0 {
-			t.Errorf("Expected empty list, got %d people", len(people))
+		// Should have the default "Joint" user from initial migration
+		if len(people) != 1 {
+			t.Errorf("Expected 1 default person (Joint), got %d people", len(people))
+		}
+
+		if people[0].Name != "Joint" {
+			t.Errorf("Expected default person to be 'Joint', got '%s'", people[0].Name)
 		}
 	})
 
-	t.Run("should return list of people when they exist", func(t *testing.T) {
+	t.Run("should return list of people when custom ones are added", func(t *testing.T) {
 		// Create test people
 		_, err := createTestPerson("John Doe", "john@example.com")
 		assertNoError(t, err)
@@ -43,8 +48,9 @@ func TestGetPeople(t *testing.T) {
 		var people []Person
 		assertNoError(t, parseJSONResponse(resp, &people))
 
-		if len(people) != 2 {
-			t.Errorf("Expected 2 people, got %d", len(people))
+		// Should have 1 default + 2 custom = 3 people
+		if len(people) != 3 {
+			t.Errorf("Expected 3 people (1 default + 2 custom), got %d", len(people))
 		}
 
 		// Verify person data
@@ -232,8 +238,13 @@ func TestDeletePerson(t *testing.T) {
 		var people []Person
 		assertNoError(t, parseJSONResponse(resp, &people))
 
-		if len(people) != 0 {
-			t.Errorf("Expected 0 people after deletion, got %d", len(people))
+		// Should have only the default "Joint" user left
+		if len(people) != 1 {
+			t.Errorf("Expected 1 person (Joint) after deletion, got %d", len(people))
+		}
+
+		if people[0].Name != "Joint" {
+			t.Errorf("Expected remaining person to be 'Joint', got '%s'", people[0].Name)
 		}
 	})
 

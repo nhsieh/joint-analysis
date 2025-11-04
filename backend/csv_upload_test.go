@@ -392,4 +392,56 @@ func TestUploadCSV(t *testing.T) {
 			t.Errorf("Expected total of 2 transactions in database after duplicate upload, got %d", len(dbTransactions))
 		}
 	})
+
+	t.Run("should assign categories correctly from CSV", func(t *testing.T) {
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		csvContent := `Transaction Date,Posted Date,Card No.,Description,Category,Debit,Credit
+2025-10-17,2025-10-20,1111,VALERO GAS STATION,Gas/Automotive,25.00,
+2025-10-20,2025-10-20,2222,MCDONALDS RESTAURANT,Dining,15.50,
+2025-10-18,2025-10-19,3333,AMAZON PURCHASE,Merchandise,45.99,
+2025-10-19,2025-10-20,4444,HOTEL BOOKING,Other Travel,150.00,
+2025-10-21,2025-10-22,5555,BANK FEE,Fee/Interest Charge,5.00,`
+
+		body, contentType := createCSVFile(csvContent, "category_test.csv")
+
+		req := httptest.NewRequest("POST", "/api/upload-csv", body)
+		req.Header.Set("Content-Type", contentType)
+		w := httptest.NewRecorder()
+
+		testRouter.ServeHTTP(w, req)
+
+		assertStatusCode(t, http.StatusOK, w.Code)
+
+		// Verify transactions were created with correct categories
+		resp := makeRequest("GET", "/api/transactions", nil)
+		assertStatusCode(t, http.StatusOK, resp.Code)
+
+		var dbTransactions []Transaction
+		assertNoError(t, parseJSONResponse(resp, &dbTransactions))
+
+		if len(dbTransactions) != 5 {
+			t.Errorf("Expected 5 transactions, got %d", len(dbTransactions))
+		}
+
+		// Check that transactions have categories assigned
+		categorizedCount := 0
+		for _, transaction := range dbTransactions {
+			if transaction.CategoryID != nil {
+				categorizedCount++
+			}
+		}
+
+		if categorizedCount != 5 {
+			t.Errorf("Expected all 5 transactions to have categories assigned, got %d", categorizedCount)
+		}
+
+		// Verify that we have at least one transaction with a category assigned
+		// (this tests that the category mapping is working)
+		if categorizedCount == 0 {
+			t.Error("Expected at least one transaction to have a category assigned, but none were found")
+		}
+	})
 }
