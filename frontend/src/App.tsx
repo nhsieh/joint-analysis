@@ -10,6 +10,7 @@ import {
   SettingOutlined,
   HomeOutlined,
   InboxOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import Dashboard from './Dashboard';
 import Settings from './Settings';
@@ -17,6 +18,8 @@ import Archives from './Archives';
 
 const { Header, Content } = Layout;
 const { Title } = Typography;
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081';
 
 const NavMenu: React.FC = () => {
   const location = useLocation();
@@ -36,6 +39,20 @@ const NavMenu: React.FC = () => {
       key: '/settings',
       icon: <SettingOutlined />,
       label: <Link to="/settings">Settings</Link>,
+    },
+    {
+      key: 'api-docs',
+      icon: <FileTextOutlined />,
+      label: (
+        <a
+          href={`${API_URL}/swagger/index.html`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: 'inherit' }}
+        >
+          API Docs
+        </a>
+      ),
     },
   ];
 
