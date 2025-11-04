@@ -1,3 +1,8 @@
+// @title Joint Analysis API
+// @version 1.0
+// @description API for the Joint Analysis expense tracking application
+// @host localhost:8081
+// @BasePath /
 package main
 
 import (
@@ -16,12 +21,16 @@ import (
 
 	"jointanalysis/db/generated"
 
+	_ "jointanalysis/docs"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
+	swaggerfiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 type Transaction struct {
@@ -281,6 +290,7 @@ func main() {
 	}))
 
 	// Routes
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 	r.POST("/api/upload-csv", uploadCSV)
 	r.GET("/api/transactions", getTransactions)
 	r.DELETE("/api/transactions", clearAllTransactions)
@@ -308,6 +318,16 @@ func main() {
 	r.Run(":" + port)
 }
 
+// @Summary Upload CSV file
+// @Description Upload a CSV file containing transaction data
+// @Tags transactions
+// @Accept multipart/form-data
+// @Produce json
+// @Param file formData file true "CSV file to upload"
+// @Success 200 {object} map[string]interface{} "Upload successful"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/upload-csv [post]
 func uploadCSV(c *gin.Context) {
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
@@ -606,6 +626,13 @@ func convertTransactionFromFields(
 	return result
 }
 
+// @Summary Get all transactions
+// @Description Retrieve all active (non-archived) transactions from the database
+// @Tags transactions
+// @Produce json
+// @Success 200 {array} Transaction "List of transactions"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/transactions [get]
 func getTransactions(c *gin.Context) {
 	dbTransactions, err := queries.GetActiveTransactions(context.Background())
 	if err != nil {
@@ -707,6 +734,13 @@ func clearAllTransactions(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "All transactions cleared successfully"})
 }
 
+// @Summary Get all people
+// @Description Retrieve all people from the database
+// @Tags people
+// @Produce json
+// @Success 200 {array} Person "List of people"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/people [get]
 func getPeople(c *gin.Context) {
 	dbPeople, err := queries.GetPeople(context.Background())
 	if err != nil {
@@ -820,6 +854,13 @@ func deletePerson(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Person deleted successfully"})
 }
 
+// @Summary Get totals by person
+// @Description Get calculated expense totals for each person from active transactions
+// @Tags totals
+// @Produce json
+// @Success 200 {array} Total "List of totals by person"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/totals [get]
 func getTotals(c *gin.Context) {
 	dbTotals, err := queries.GetActiveTransactionTotals(context.Background())
 	if err != nil {

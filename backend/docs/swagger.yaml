@@ -1,0 +1,151 @@
+basePath: /
+definitions:
+  main.Person:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  main.Total:
+    properties:
+      person:
+        type: string
+      total:
+        type: number
+    type: object
+  main.Transaction:
+    properties:
+      amount:
+        type: number
+      assigned_to:
+        items:
+          type: string
+        type: array
+      card_number:
+        type: string
+      category_id:
+        type: string
+      created_at:
+        type: string
+      date_uploaded:
+        type: string
+      description:
+        type: string
+      file_name:
+        type: string
+      id:
+        type: string
+      posted_date:
+        type: string
+      transaction_date:
+        type: string
+      updated_at:
+        type: string
+    type: object
+host: localhost:8081
+info:
+  contact: {}
+  description: API for the Joint Analysis expense tracking application
+  title: Joint Analysis API
+  version: "1.0"
+paths:
+  /api/people:
+    get:
+      description: Retrieve all people from the database
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of people
+          schema:
+            items:
+              $ref: '#/definitions/main.Person'
+            type: array
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get all people
+      tags:
+      - people
+  /api/totals:
+    get:
+      description: Get calculated expense totals for each person from active transactions
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of totals by person
+          schema:
+            items:
+              $ref: '#/definitions/main.Total'
+            type: array
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get totals by person
+      tags:
+      - totals
+  /api/transactions:
+    get:
+      description: Retrieve all active (non-archived) transactions from the database
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of transactions
+          schema:
+            items:
+              $ref: '#/definitions/main.Transaction'
+            type: array
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get all transactions
+      tags:
+      - transactions
+  /api/upload-csv:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a CSV file containing transaction data
+      parameters:
+      - description: CSV file to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Upload successful
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Upload CSV file
+      tags:
+      - transactions
+swagger: "2.0"
