@@ -288,8 +288,14 @@ const Dashboard: React.FC = () => {
       key: 'transaction_date',
       render: (date: string, record: Transaction) => {
         if (!date) return '-';
-        const transactionDate = new Date(date).toLocaleDateString();
-        const postedDate = record.posted_date ? new Date(record.posted_date).toLocaleDateString() : null;
+        // Parse date as YYYY-MM-DD and format as MM/DD/YYYY to avoid timezone issues
+        const formatDateString = (dateStr: string): string => {
+          const [year, month, day] = dateStr.split('-');
+          return `${month}/${day}/${year}`;
+        };
+
+        const transactionDate = formatDateString(date);
+        const postedDate = record.posted_date ? formatDateString(record.posted_date) : null;
 
         return (
           <div>
@@ -302,8 +308,11 @@ const Dashboard: React.FC = () => {
           </div>
         );
       },
-      sorter: (a: Transaction, b: Transaction) =>
-        new Date(a.transaction_date || 0).getTime() - new Date(b.transaction_date || 0).getTime(),
+      sorter: (a: Transaction, b: Transaction) => {
+        const dateA = a.transaction_date ? new Date(a.transaction_date + 'T12:00:00').getTime() : 0;
+        const dateB = b.transaction_date ? new Date(b.transaction_date + 'T12:00:00').getTime() : 0;
+        return dateA - dateB;
+      },
       width: 100,
     },
     {
