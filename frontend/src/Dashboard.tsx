@@ -15,6 +15,7 @@ import {
   message,
   Spin,
   Checkbox,
+  Modal,
 } from 'antd';
 import {
   UploadOutlined,
@@ -251,27 +252,50 @@ const Dashboard: React.FC = () => {
   };
 
   const deletePerson = async (personId: string, personName: string) => {
-    try {
-      await axios.delete(`${API_URL}/api/people/${personId}`);
-      message.success(`${personName} deleted successfully!`);
-      fetchPeople();
-      fetchTotals();
-    } catch (error) {
-      console.error('Error deleting person:', error);
-      message.error('Error deleting person');
-    }
+    Modal.confirm({
+      title: 'Delete Person',
+      content: `Are you sure you want to delete "${personName}"? This action cannot be undone and will affect all transactions assigned to this person (including archived transactions).`,
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          await axios.delete(`${API_URL}/api/people/${personId}`);
+          message.success(`${personName} deleted successfully!`);
+          fetchPeople();
+          fetchTotals();
+        } catch (error) {
+          console.error('Error deleting person:', error);
+          message.error('Error deleting person');
+        }
+      },
+    });
   };
 
   const clearAllTransactions = async () => {
-    try {
-      await axios.delete(`${API_URL}/api/transactions`);
-      message.success('All transactions cleared successfully!');
-      fetchTransactions();
-      fetchTotals();
-    } catch (error) {
-      console.error('Error clearing transactions:', error);
-      message.error('Error clearing transactions');
+    if (transactions.length === 0) {
+      message.warning('No transactions to clear');
+      return;
     }
+
+    Modal.confirm({
+      title: 'Clear All Transactions',
+      content: `Are you sure you want to clear all ${transactions.length} transactions? This will not affect archived transactions. This action cannot be undone.`,
+      okText: 'Yes, Clear All',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          await axios.delete(`${API_URL}/api/transactions`);
+          message.success('All transactions cleared successfully!');
+          fetchTransactions();
+          fetchTotals();
+        } catch (error) {
+          console.error('Error clearing transactions:', error);
+          message.error('Error clearing transactions');
+        }
+      },
+    });
   };
 
   const archiveAllTransactions = async () => {
@@ -297,15 +321,28 @@ const Dashboard: React.FC = () => {
   };
 
   const deleteTransaction = async (transactionId: string) => {
-    try {
-      await axios.delete(`${API_URL}/api/transactions/${transactionId}`);
-      message.success('Transaction deleted successfully!');
-      fetchTransactions();
-      fetchTotals();
-    } catch (error) {
-      console.error('Error deleting transaction:', error);
-      message.error('Error deleting transaction');
-    }
+    // Find the transaction to get its description for the confirmation message
+    const transaction = transactions.find(t => t.id === transactionId);
+    const transactionDescription = transaction ? transaction.description : 'this transaction';
+
+    Modal.confirm({
+      title: 'Delete Transaction',
+      content: `Are you sure you want to delete "${transactionDescription}"? This action cannot be undone.`,
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          await axios.delete(`${API_URL}/api/transactions/${transactionId}`);
+          message.success('Transaction deleted successfully!');
+          fetchTransactions();
+          fetchTotals();
+        } catch (error) {
+          console.error('Error deleting transaction:', error);
+          message.error('Error deleting transaction');
+        }
+      },
+    });
   };
 
   const updateTransactionCategory = async (transactionId: string, categoryId: string | null) => {

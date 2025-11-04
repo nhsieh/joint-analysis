@@ -239,6 +239,7 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 
 const deleteAllTransactions = `-- name: DeleteAllTransactions :exec
 DELETE FROM transactions
+WHERE archive_id IS NULL
 `
 
 func (q *Queries) DeleteAllTransactions(ctx context.Context) error {

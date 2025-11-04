@@ -167,7 +167,8 @@ GROUP BY c.id, c.name
 ORDER BY c.name;
 
 -- name: DeleteAllTransactions :exec
-DELETE FROM transactions;
+DELETE FROM transactions
+WHERE archive_id IS NULL;
 
 -- Archive queries
 -- name: CreateArchive :one
