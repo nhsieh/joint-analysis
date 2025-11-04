@@ -247,14 +247,7 @@ func main() {
 	// Initialize the generated queries
 	queries = generated.New(dbPool)
 
-	// Initialize category mapping
-	categoryMapping, err = initializeCategoryMapping()
-	if err != nil {
-		log.Printf("Warning: Failed to initialize category mapping: %v", err)
-		log.Println("Transactions will be created without categories")
-	}
-
-	// Run database migrations
+	// Run database migrations first
 	// Create a separate sql.DB connection for migrations (golang-migrate requires it)
 	migrationConnStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		dbHost, dbPort, dbUser, dbPassword, dbName)
@@ -267,6 +260,13 @@ func main() {
 
 	if err := runMigrations(migrationDB, "db/migrations"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	// Initialize category mapping after migrations
+	categoryMapping, err = initializeCategoryMapping()
+	if err != nil {
+		log.Printf("Warning: Failed to initialize category mapping: %v", err)
+		log.Println("Transactions will be created without categories")
 	}
 
 	r := gin.Default()
