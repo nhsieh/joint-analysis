@@ -476,6 +476,55 @@ func TestUploadCSV(t *testing.T) {
 		}
 	})
 
+	t.Run("should handle debit and credit amounts correctly", func(t *testing.T) {
+		// Clean data before test
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		// CSV with one debit (positive) and one credit (should be negative)
+		debitCreditCSV := `Transaction Date,Posted Date,Card No.,Description,Category,Debit,Credit
+2023-01-01,2023-01-01,****1234,Grocery Purchase,Food,50.00,
+2023-01-02,2023-01-02,****1234,Refund,Food,,25.00`
+
+		body, contentType := createCSVFile(t, "test.csv", debitCreditCSV)
+
+		req, err := http.NewRequest("POST", "/api/upload-csv", body)
+		assertNoError(t, err)
+
+		req.Header.Set("Content-Type", contentType)
+
+		resp := makeRequestWithCustomRequest(req)
+
+		assertStatusCode(t, http.StatusOK, resp.Code)
+
+		var result map[string]interface{}
+		err = json.Unmarshal(resp.Body.Bytes(), &result)
+		assertNoError(t, err)
+
+		transactions, ok := result["transactions"].([]interface{})
+		if !ok {
+			t.Fatal("Expected transactions array in response")
+		}
+		if len(transactions) != 2 {
+			t.Fatalf("Expected 2 transactions, got %d", len(transactions))
+		}
+
+		// Verify first transaction (debit) is positive
+		firstTx := transactions[0].(map[string]interface{})
+		firstAmount := firstTx["amount"].(float64)
+		if firstAmount != 50.00 {
+			t.Errorf("Expected debit amount to be 50.00, got %v", firstAmount)
+		}
+
+		// Verify second transaction (credit) is negative
+		secondTx := transactions[1].(map[string]interface{})
+		secondAmount := secondTx["amount"].(float64)
+		if secondAmount != -25.00 {
+			t.Errorf("Expected credit amount to be -25.00, got %v", secondAmount)
+		}
+	})
+
 	t.Run("should accept simple text file as CSV", func(t *testing.T) {
 		// Clean data before test
 		if err := cleanupTestData(); err != nil {

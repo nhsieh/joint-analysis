@@ -533,7 +533,7 @@ const Dashboard: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>
                 <DollarCircleOutlined style={{ marginRight: 8 }} />
-                Totals by Person
+                Total Spent by Person
               </span>
               <Space.Compact>
                 <Input
@@ -601,7 +601,7 @@ const Dashboard: React.FC = () => {
                               precision={2}
                               prefix="$"
                               valueStyle={{
-                                color: totalAmount > 0 ? '#3f8600' : totalAmount < 0 ? '#cf1322' : '#666666',
+                                color: totalAmount > 0 ? '#cf1322' : totalAmount < 0 ? '#3f8600': '#666666',
                                 fontSize: '28px',
                                 fontWeight: 'bold'
                               }}
@@ -730,7 +730,7 @@ const Dashboard: React.FC = () => {
                 >
                   <div style={{ color: 'white' }}>
                     <Text style={{ color: 'white', fontSize: 16, fontWeight: 500 }}>
-                      Grand Total
+                      Grand Total Spent
                     </Text>
                     <div style={{ marginTop: 8 }}>
                       <Statistic

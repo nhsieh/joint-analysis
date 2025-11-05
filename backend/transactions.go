@@ -71,11 +71,14 @@ func uploadCSV(c *gin.Context) {
 		description = record[3]      // Description
 		csvCategory := record[4]     // Category from CSV
 
-		// Try to get amount from Debit column (index 5) first, then Credit column (index 6)
+		// Parse amount from Debit (positive) or Credit (negative) columns
 		if record[5] != "" {
+			// Debit amount - keep as positive (expense)
 			amount, err = strconv.ParseFloat(record[5], 64)
 		} else if record[6] != "" {
+			// Credit amount - make negative (income/refund)
 			amount, err = strconv.ParseFloat(record[6], 64)
+			amount = -amount // Make credits negative
 		} else {
 			skippedRows++
 			continue // Skip if no amount found
