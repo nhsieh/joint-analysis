@@ -11,10 +11,12 @@ import {
   HomeOutlined,
   InboxOutlined,
   FileTextOutlined,
+  LineChartOutlined,
 } from '@ant-design/icons';
 import Dashboard from './Dashboard';
 import Settings from './Settings';
 import Archives from './Archives';
+import Trends from './Trends';
 
 const { Header, Content } = Layout;
 const { Title } = Typography;
@@ -34,6 +36,11 @@ const NavMenu: React.FC = () => {
       key: '/archives',
       icon: <InboxOutlined />,
       label: <Link to="/archives">Archives</Link>,
+    },
+    {
+      key: '/trends',
+      icon: <LineChartOutlined />,
+      label: <Link to="/trends">Trends</Link>,
     },
     {
       key: '/settings',
@@ -90,6 +97,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/archives" element={<Archives />} />
+            <Route path="/trends" element={<Trends />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </Content>
