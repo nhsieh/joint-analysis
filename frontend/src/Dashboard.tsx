@@ -79,6 +79,7 @@ const Dashboard: React.FC = () => {
   const [archiving, setArchiving] = useState(false);
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
+  const [assignedFilter, setAssignedFilter] = useState<string>('all');
 
   useEffect(() => {
     fetchTransactions();
@@ -364,6 +365,13 @@ const Dashboard: React.FC = () => {
     showUploadList: false,
     multiple: false,
   };
+
+  // Filter transactions based on assigned filter
+  const filteredTransactions = assignedFilter === 'all'
+    ? transactions
+    : transactions.filter(transaction =>
+        (transaction.assigned_to || []).includes(assignedFilter)
+      );
 
   const columns: ColumnsType<Transaction> = [
     {
@@ -757,9 +765,25 @@ const Dashboard: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>
                 <FileTextOutlined style={{ marginRight: 8 }} />
-                Transactions ({transactions.length})
+                Transactions ({filteredTransactions.length})
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
+                <Select
+                  style={{ width: 200 }}
+                  placeholder="Filter by person"
+                  value={assignedFilter}
+                  onChange={(value) => {
+                    setAssignedFilter(value);
+                    setCurrentPage(1); // Reset to first page when filtering
+                  }}
+                >
+                  <Option value="all">All Transactions</Option>
+                  {people.map((person) => (
+                    <Option key={person.id} value={person.name}>
+                      {person.name}
+                    </Option>
+                  ))}
+                </Select>
                 <Button
                   icon={<InboxOutlined />}
                   size="middle"
@@ -797,7 +821,7 @@ const Dashboard: React.FC = () => {
           <Spin spinning={loading}>
             <Table
               columns={columns}
-              dataSource={transactions}
+              dataSource={filteredTransactions}
               rowKey="id"
               pagination={{
                 current: currentPage,

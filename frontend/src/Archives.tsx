@@ -12,6 +12,7 @@ import {
   message,
   Spin,
   Modal,
+  Select,
 } from 'antd';
 import {
   InboxOutlined,
@@ -50,19 +51,37 @@ interface Transaction {
   category_id: string;
 }
 
+interface Person {
+  id: string;
+  name: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+}
+
 const { Title, Text } = Typography;
+const { Option } = Select;
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081';
 
 const Archives: React.FC = () => {
   const [archives, setArchives] = useState<Archive[]>([]);
   const [archivedTransactions, setArchivedTransactions] = useState<Transaction[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedArchive, setSelectedArchive] = useState<Archive | null>(null);
+  const [assignedFilter, setAssignedFilter] = useState<string>('all');
 
   useEffect(() => {
     fetchArchives();
+    fetchPeople();
+    fetchCategories();
   }, []);
 
   const fetchArchives = async () => {
@@ -75,6 +94,24 @@ const Archives: React.FC = () => {
       message.error('Error fetching archives');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPeople = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/people`);
+      setPeople(response.data || []);
+    } catch (error) {
+      console.error('Error fetching people:', error);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/categories`);
+      setCategories(response.data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
     }
   };
 
@@ -169,13 +206,27 @@ const Archives: React.FC = () => {
         return dateB - dateA;
       },
       defaultSortOrder: 'ascend',
-      width: '15%',
+      width: 100,
     },
     {
       title: 'Description',
       dataIndex: 'description',
       key: 'description',
-      width: '40%',
+      ellipsis: true,
+    },
+    {
+      title: 'Category',
+      dataIndex: 'category_id',
+      key: 'category_id',
+      render: (categoryId: string) => {
+        const category = categories.find(c => c.id === categoryId);
+        return category ? (
+          <span style={{ color: category.color }}>
+            {category.name}
+          </span>
+        ) : '-';
+      },
+      width: 120,
     },
     {
       title: 'Amount',
@@ -183,16 +234,23 @@ const Archives: React.FC = () => {
       key: 'amount',
       render: (amount: number) => `$${amount.toFixed(2)}`,
       align: 'right',
-      width: '20%',
+      width: 100,
     },
     {
       title: 'Assigned To',
       dataIndex: 'assigned_to',
       key: 'assigned_to',
       render: (assignedTo: string[]) => assignedTo?.join(', ') || 'Unassigned',
-      width: '25%',
+      width: 150,
     },
   ];
+
+  // Filter transactions based on assigned filter
+  const filteredArchivedTransactions = assignedFilter === 'all'
+    ? archivedTransactions
+    : archivedTransactions.filter(transaction =>
+        (transaction.assigned_to || []).includes(assignedFilter)
+      );
 
   // Calculate summary statistics
   const totalArchives = archives.length;
@@ -306,10 +364,26 @@ const Archives: React.FC = () => {
               </Col>
             </Row>
 
+            <div style={{ marginBottom: '16px' }}>
+              <Select
+                style={{ width: 200 }}
+                placeholder="Filter by person"
+                value={assignedFilter}
+                onChange={(value) => setAssignedFilter(value)}
+              >
+                <Option value="all">All Transactions</Option>
+                {people.map((person) => (
+                  <Option key={person.id} value={person.name}>
+                    {person.name}
+                  </Option>
+                ))}
+              </Select>
+            </div>
+
             <Spin spinning={detailLoading}>
               <Table
                 columns={transactionColumns}
-                dataSource={archivedTransactions}
+                dataSource={filteredArchivedTransactions}
                 rowKey="id"
                 pagination={{
                   pageSize: 10,
