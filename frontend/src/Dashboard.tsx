@@ -19,7 +19,6 @@ import {
 } from 'antd';
 import {
   UploadOutlined,
-  UserAddOutlined,
   DollarCircleOutlined,
   FileTextOutlined,
   DeleteOutlined,
@@ -73,7 +72,6 @@ const Dashboard: React.FC = () => {
   const [people, setPeople] = useState<Person[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [totals, setTotals] = useState<PersonTotal[]>([]);
-  const [newPersonName, setNewPersonName] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [archiving, setArchiving] = useState(false);
@@ -233,44 +231,6 @@ const Dashboard: React.FC = () => {
       console.error('Error assigning transaction:', error);
       message.error('Error assigning transaction');
     }
-  };
-
-  const createPerson = async () => {
-    if (!newPersonName.trim()) {
-      message.warning('Please enter a person name');
-      return;
-    }
-
-    try {
-      await axios.post(`${API_URL}/api/people`, { name: newPersonName });
-      setNewPersonName('');
-      message.success('Person added successfully!');
-      fetchPeople();
-    } catch (error) {
-      console.error('Error creating person:', error);
-      message.error('Error creating person');
-    }
-  };
-
-  const deletePerson = async (personId: string, personName: string) => {
-    Modal.confirm({
-      title: 'Delete Person',
-      content: `Are you sure you want to delete "${personName}"? This action cannot be undone and will affect all transactions assigned to this person (including archived transactions).`,
-      okText: 'Yes, Delete',
-      okType: 'danger',
-      cancelText: 'Cancel',
-      onOk: async () => {
-        try {
-          await axios.delete(`${API_URL}/api/people/${personId}`);
-          message.success(`${personName} deleted successfully!`);
-          fetchPeople();
-          fetchTotals();
-        } catch (error) {
-          console.error('Error deleting person:', error);
-          message.error('Error deleting person');
-        }
-      },
-    });
   };
 
   const clearAllTransactions = async () => {
@@ -540,30 +500,10 @@ const Dashboard: React.FC = () => {
         {/* Totals Section */}
         <Card
           title={
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>
-                <DollarCircleOutlined style={{ marginRight: 8 }} />
-                Total Spent by Person
-              </span>
-              <Space.Compact>
-                <Input
-                  placeholder="Enter person name"
-                  value={newPersonName}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPersonName(e.target.value)}
-                  onPressEnter={createPerson}
-                  size="middle"
-                  style={{ width: 200 }}
-                />
-                <Button
-                  type="primary"
-                  onClick={createPerson}
-                  icon={<UserAddOutlined />}
-                  size="middle"
-                >
-                  Add Person
-                </Button>
-              </Space.Compact>
-            </div>
+            <span>
+              <DollarCircleOutlined style={{ marginRight: 8 }} />
+              Total Spent by Person
+            </span>
           }
           style={{ marginBottom: 24 }}
           variant='borderless'
@@ -595,13 +535,6 @@ const Dashboard: React.FC = () => {
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                             <Text strong style={{ fontSize: 18 }}>{person.name}</Text>
-                            <Button
-                              type="text"
-                              danger
-                              size="small"
-                              icon={<DeleteOutlined />}
-                              onClick={() => deletePerson(person.id, person.name)}
-                            />
                           </div>
 
                           {/* Total Section - Centered Above Chart */}

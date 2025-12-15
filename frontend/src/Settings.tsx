@@ -19,7 +19,16 @@ import {
   PlusOutlined,
   TagOutlined,
   DeleteOutlined,
+  UserAddOutlined,
 } from '@ant-design/icons';
+
+interface Person {
+  id: string;
+  name: string;
+  email?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 interface Category {
   id: string;
@@ -32,14 +41,63 @@ const { Title, Text } = Typography;
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081';
 
 const Settings: React.FC = () => {
+  const [people, setPeople] = useState<Person[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [newPersonName, setNewPersonName] = useState('');
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [categoryForm] = Form.useForm();
 
   useEffect(() => {
+    fetchPeople();
     fetchCategories();
   }, []);
+
+  const fetchPeople = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/people`);
+      setPeople(response.data || []);
+    } catch (error) {
+      console.error('Error fetching people:', error);
+    }
+  };
+
+  const createPerson = async () => {
+    if (!newPersonName.trim()) {
+      message.warning('Please enter a person name');
+      return;
+    }
+
+    try {
+      await axios.post(`${API_URL}/api/people`, { name: newPersonName });
+      setNewPersonName('');
+      message.success('Person added successfully!');
+      fetchPeople();
+    } catch (error) {
+      console.error('Error creating person:', error);
+      message.error('Error creating person');
+    }
+  };
+
+  const deletePerson = async (personId: string, personName: string) => {
+    Modal.confirm({
+      title: 'Delete Person',
+      content: `Are you sure you want to delete "${personName}"? This action cannot be undone and will affect all transactions assigned to this person (including archived transactions).`,
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          await axios.delete(`${API_URL}/api/people/${personId}`);
+          message.success(`${personName} deleted successfully!`);
+          fetchPeople();
+        } catch (error) {
+          console.error('Error deleting person:', error);
+          message.error('Error deleting person');
+        }
+      },
+    });
+  };
 
   const fetchCategories = async () => {
     try {
@@ -111,6 +169,89 @@ const Settings: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       <Title level={2}>Settings</Title>
+
+      {/* People Management Section */}
+      <Card
+        title={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>
+              <UserAddOutlined style={{ marginRight: 8 }} />
+              People ({people.length})
+            </span>
+            <Space.Compact>
+              <Input
+                placeholder="Enter person name"
+                value={newPersonName}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPersonName(e.target.value)}
+                onPressEnter={createPerson}
+                size="middle"
+                style={{ width: 200 }}
+              />
+              <Button
+                type="primary"
+                onClick={createPerson}
+                icon={<UserAddOutlined />}
+                size="middle"
+              >
+                Add Person
+              </Button>
+            </Space.Compact>
+          </div>
+        }
+        style={{ marginBottom: 24 }}
+      >
+        {people.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Text type="secondary">
+              No people added yet. Add people to start tracking expenses.
+            </Text>
+          </div>
+        ) : (
+          <Row gutter={[8, 8]}>
+            {people.map((person) => (
+              <Col xs={12} sm={8} md={6} lg={4} xl={3} key={person.id}>
+                <Card
+                  size="small"
+                  style={{
+                    textAlign: 'center',
+                    minHeight: '60px',
+                  }}
+                  bodyStyle={{ padding: '8px' }}
+                  hoverable
+                >
+                  <div style={{
+                    fontWeight: 'bold',
+                    fontSize: '14px',
+                    marginBottom: '4px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}>
+                    {person.name}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
+                    <Popconfirm
+                      title="Delete Person"
+                      description={`Are you sure you want to delete "${person.name}"?`}
+                      onConfirm={() => deletePerson(person.id, person.name)}
+                      okText="Yes"
+                      cancelText="No"
+                    >
+                      <Button
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        size="small"
+                        style={{ padding: '2px 4px', minWidth: 'auto' }}
+                      />
+                    </Popconfirm>
+                  </div>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        )}
+      </Card>
 
       {/* Categories Management Section */}
       <Card
