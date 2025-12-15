@@ -93,7 +93,6 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       const response = await axios.get(`${API_URL}/api/transactions`);
       setTransactions(response.data || []);
-      setCurrentPage(1); // Reset to first page when fetching new data
     } catch (error) {
       console.error('Error fetching transactions:', error);
     } finally {
@@ -213,6 +212,7 @@ const Dashboard: React.FC = () => {
 
       await fetchTransactions();
       await fetchTotals();
+      setCurrentPage(1); // Reset to first page after upload
     } catch (error) {
       console.error('Error uploading file:', error);
       message.error('Error uploading file. Please try again.');
@@ -289,6 +289,7 @@ const Dashboard: React.FC = () => {
         try {
           await axios.delete(`${API_URL}/api/transactions`);
           message.success('All transactions cleared successfully!');
+          setCurrentPage(1); // Reset to first page after clearing
           fetchTransactions();
           fetchTotals();
         } catch (error) {
@@ -311,6 +312,7 @@ const Dashboard: React.FC = () => {
         description: `Archived on ${new Date().toLocaleString()}`
       });
       message.success('Transactions archived successfully!');
+      setCurrentPage(1); // Reset to first page after archiving
       fetchTransactions();
       fetchTotals();
     } catch (error) {
