@@ -658,7 +658,7 @@ const Dashboard: React.FC = () => {
                                       const total = chartData.reduce((sum, d) => sum + d.value, 0);
                                       return chartData.map(item => ({
                                         type: item.name, // Keep original name for pie chart
-                                        value: item.value,
+                                        value:  Number(item.value.toFixed(2)),
                                         originalName: item.name,
                                         color: item.color
                                       }));
