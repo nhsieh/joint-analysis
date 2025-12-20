@@ -254,8 +254,6 @@ const Archives: React.FC = () => {
 
   // Calculate summary statistics
   const totalArchives = archives.length;
-  const totalArchivedTransactions = archives.reduce((sum, archive) => sum + archive.transaction_count, 0);
-  const totalArchivedAmount = archives.reduce((sum, archive) => sum + archive.total_amount, 0);
 
   return (
     <div style={{ padding: '24px' }}>
@@ -263,38 +261,6 @@ const Archives: React.FC = () => {
         <InboxOutlined style={{ marginRight: 8 }} />
         Archives
       </Title>
-
-      {/* Summary Statistics */}
-      <Row gutter={16} style={{ marginBottom: '24px' }}>
-        <Col span={8}>
-          <Card>
-            <Statistic
-              title="Total Archives"
-              value={totalArchives}
-              prefix={<InboxOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card>
-            <Statistic
-              title="Archived Transactions"
-              value={totalArchivedTransactions}
-              prefix={<FileTextOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card>
-            <Statistic
-              title="Total Archived Amount"
-              value={totalArchivedAmount}
-              prefix={<DollarCircleOutlined />}
-              precision={2}
-            />
-          </Card>
-        </Col>
-      </Row>
 
       {/* Archives Table */}
       <Card
