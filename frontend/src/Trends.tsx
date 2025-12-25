@@ -280,10 +280,12 @@ const Trends: React.FC = () => {
     return Object.entries(byPerson)
       .map(([person, data]) => ({
         person,
-        data: data.map(d => ({
-          type: d.category,
-          value: parseFloat(d.amount.toFixed(2)),
-        })),
+        data: data
+          .map(d => ({
+            type: d.category,
+            value: parseFloat(d.amount.toFixed(2)),
+          }))
+          .sort((a, b) => b.value - a.value), // Sort by value descending
       }))
       .sort((a, b) => {
         // "Joint" comes first
@@ -313,6 +315,12 @@ const Trends: React.FC = () => {
     xField: 'archive',
     yField: 'amount',
     colorField: 'category',
+    scale: {
+      color: {
+        range: Array.from(new Set(topCategoriesData.map(d => d.category)))
+          .map(cat => getCategoryColor(cat, categories)),
+      },
+    },
     point: {
       size: 5,
       shape: 'circle',
@@ -354,6 +362,12 @@ const Trends: React.FC = () => {
         </Col>
 
         <Col span={24}>
+          <Card title="Category Distribution Over Time">
+            <Line {...topCategoriesConfig} />
+          </Card>
+        </Col>
+
+        <Col span={24}>
           <Card
             title="Category Spending by Person"
             extra={
@@ -377,39 +391,93 @@ const Trends: React.FC = () => {
               </p>
             ) : (
               <Row gutter={[16, 16]}>
-                {pieDataByPerson.map(({ person, data }) => (
-                  <Col xs={24} sm={24} md={12} lg={8} key={person}>
-                    <Card size="small" title={person}>
-                      <Pie
-                        key={`${person}-${selectedArchive}-${JSON.stringify(data)}`}
-                        data={data.map(d => ({
-                          ...d,
-                          color: getCategoryColor(d.type, categories),
-                        }))}
-                        angleField="value"
-                        colorField="type"
-                        radius={0.8}
-                        innerRadius={0.6}
-                        scale={{
-                          color: {
-                            range: data.map(d => getCategoryColor(d.type, categories)),
-                          },
-                        }}
-                        legend={{
-                          position: 'bottom',
-                        }}
-                      />
+                {pieDataByPerson.map(({ person, data }) => {
+                  const personTotal = data.reduce((sum, d) => sum + d.value, 0);
+                  return (
+                    <Col xs={24} sm={24} md={12} lg={8} key={person}>
+                      <Card
+                        size="small"
+                        title={
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>{person}</span>
+                            <span style={{ fontWeight: 'normal', color: '#666' }}>
+                              ${personTotal.toFixed(2)}
+                            </span>
+                          </div>
+                        }
+                      >
+                      <div>
+                        {/* Pie Chart */}
+                        <div style={{
+                          height: '320px',
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                        }}>
+                          <Pie
+                            key={`${person}-${selectedArchive}-${JSON.stringify(data)}`}
+                            data={data.map(d => ({
+                              ...d,
+                              color: getCategoryColor(d.type, categories),
+                            }))}
+                            angleField="value"
+                            colorField="type"
+                            radius={0.75}
+                            innerRadius={0.3}
+                            scale={{
+                              color: {
+                                range: data.map(d => getCategoryColor(d.type, categories)),
+                              },
+                            }}
+                            legend={false}
+                            interactions={[
+                              { type: 'element-highlight' },
+                            ]}
+                          />
+                        </div>
+
+                        {/* Custom Legend */}
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                          padding: '16px'
+                        }}>
+                          {(() => {
+                            const total = data.reduce((sum, d) => sum + d.value, 0);
+                            return data.map((item, index) => (
+                              <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                <div
+                                  style={{
+                                    width: '12px',
+                                    height: '12px',
+                                    borderRadius: '50%',
+                                    backgroundColor: getCategoryColor(item.type, categories),
+                                    marginTop: '2px',
+                                    flexShrink: 0
+                                  }}
+                                />
+                                <div style={{ fontSize: '12px', lineHeight: '1.2', flex: 1 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontWeight: 500, color: '#333' }}>
+                                      {item.type} ({((item.value / total) * 100).toFixed(1)}%)
+                                    </span>
+                                    <span style={{ color: '#666', fontSize: '11px' }}>
+                                      ${item.value.toFixed(2)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
                     </Card>
                   </Col>
-                ))}
+                  );
+                })}
               </Row>
             )}
-          </Card>
-        </Col>
-
-        <Col span={24}>
-          <Card title="Category Distribution Over Time">
-            <Line {...topCategoriesConfig} />
           </Card>
         </Col>
       </Row>
