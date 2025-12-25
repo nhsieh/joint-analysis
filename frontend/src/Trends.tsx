@@ -7,11 +7,12 @@ import {
   Col,
   message,
   Spin,
+  Select,
 } from 'antd';
 import {
   LineChartOutlined,
 } from '@ant-design/icons';
-import { Line, Column, Area } from '@ant-design/charts';
+import { Line, Pie } from '@ant-design/charts';
 
 interface Archive {
   id: string;
@@ -77,6 +78,7 @@ const Trends: React.FC = () => {
   const [people, setPeople] = useState<Person[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedArchive, setSelectedArchive] = useState<string | null>(null);
 
   const [categorySpendingData, setCategorySpendingData] = useState<CategorySpendingData[]>([]);
   const [totalSpendingData, setTotalSpendingData] = useState<TotalSpendingData[]>([]);
@@ -90,6 +92,15 @@ const Trends: React.FC = () => {
   useEffect(() => {
     if (archives.length > 0 && people.length > 0 && categories.length > 0) {
       processChartData();
+      // Set default selected archive to the most recent one
+      if (!selectedArchive && archives.length > 0) {
+        const sortedArchives = [...archives].sort(
+          (a, b) => new Date(b.archived_at).getTime() - new Date(a.archived_at).getTime()
+        );
+        const mostRecent = sortedArchives[0];
+        const archiveLabel = mostRecent.description || new Date(mostRecent.archived_at).toLocaleDateString();
+        setSelectedArchive(archiveLabel);
+      }
     }
   }, [archives, people, categories]);
 
@@ -270,73 +281,55 @@ const Trends: React.FC = () => {
     setBalanceData(balances);
   };
 
-  // Chart configurations
-  const categorySpendingConfig = {
-    // data: categorySpendingData.map(item => ({
-    //   ...item,
-    //   archivePerson: `${item.archive} - ${item.person}`,
-    // })),
-    // xField: 'archivePerson',
-    // yField: 'amount',
-    // colorField: 'category',
-    data: categorySpendingData,
-    xField: 'archive',
-    yField: 'amount',
-    seriesField: 'person',
-    stack: {
-      groupBy: ['x', 'series'],
-      series: false,
-    },
-    colorField: 'category',
-    label: {
-      text: (d: any) => `[${d.person}] ${d.category}`,
-      position: 'top',
-      style: {
-        fontSize: 10,
-        fontWeight: 'bold',
-      },
-    },
-    tooltip: (item: any) => {
-      return { origin: item };
-    },
-    interaction: {
-      tooltip: {
-        render: (e: any, { title, items }: { title: string; items: any[] }) => {
-          return (
-            <div>
-              <h4>{title}</h4>
-              {items.map((item: any) => {
-                const { name, color, origin } = item;
-                return (
-                  <div>
-                    <div style={{ margin: 0, display: 'flex', justifyContent: 'space-between' }}>
-                      <div>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            width: 6,
-                            height: 6,
-                            borderRadius: '50%',
-                            backgroundColor: color,
-                            marginRight: 6,
-                          }}
-                        ></span>
-                        <span>
-                          [{name}] {origin['category']}
-                        </span>
-                      </div>
-                      <b>{origin['amount']}</b>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        },
-      },
-    },
+  // Get unique archive labels for selector
+  const archiveLabels: string[] = Array.from(new Set(categorySpendingData.map(d => d.archive))).sort();
+
+  // Filter and group data for pie charts by person
+  const getPieDataByPerson = () => {
+    if (!selectedArchive) return [];
+
+    // Filter data for selected archive
+    const filteredData = categorySpendingData.filter(d => d.archive === selectedArchive);
+
+    // Group by person
+    const byPerson = filteredData.reduce((acc, curr) => {
+      if (!acc[curr.person]) {
+        acc[curr.person] = [];
+      }
+
+      // Check if category already exists for this person
+      const existingCategory = acc[curr.person].find(item => item.category === curr.category);
+      if (existingCategory) {
+        existingCategory.amount += curr.amount;
+      } else {
+        acc[curr.person].push({
+          category: curr.category,
+          amount: curr.amount,
+        });
+      }
+      return acc;
+    }, {} as Record<string, Array<{ category: string; amount: number }>>);
+
+    return Object.entries(byPerson)
+      .map(([person, data]) => ({
+        person,
+        data: data.map(d => ({
+          type: d.category,
+          value: parseFloat(d.amount.toFixed(2)),
+        })),
+      }))
+      .sort((a, b) => {
+        // "Joint" comes first
+        if (a.person === 'Joint') return -1;
+        if (b.person === 'Joint') return 1;
+        // Then alphabetically
+        return a.person.localeCompare(b.person);
+      });
   };
 
+  const pieDataByPerson = getPieDataByPerson();
+
+  // Chart configurations
   const totalSpendingConfig = {
     data: totalSpendingData,
     xField: 'archive',
@@ -394,8 +387,48 @@ const Trends: React.FC = () => {
         </Col>
 
         <Col span={24}>
-          <Card title="Category Spending by Person">
-              <Column {...categorySpendingConfig} />
+          <Card
+            title="Category Spending by Person"
+            extra={
+              <Select
+                style={{ width: 300 }}
+                placeholder="Select archive"
+                value={selectedArchive}
+                onChange={setSelectedArchive}
+              >
+                {archiveLabels.map(label => (
+                  <Select.Option key={label} value={label}>
+                    {label}
+                  </Select.Option>
+                ))}
+              </Select>
+            }
+          >
+            {pieDataByPerson.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#999' }}>
+                Select an archive to view category breakdown by person
+              </p>
+            ) : (
+              <Row gutter={[16, 16]}>
+                {pieDataByPerson.map(({ person, data }) => (
+                  <Col xs={24} sm={24} md={12} lg={8} key={person}>
+                    <Card size="small" title={person}>
+                      <Pie
+                        key={`${person}-${selectedArchive}-${JSON.stringify(data)}`}
+                        data={data}
+                        angleField="value"
+                        colorField="type"
+                        radius={0.8}
+                        innerRadius={0.6}
+                        legend={{
+                          position: 'bottom',
+                        }}
+                      />
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            )}
           </Card>
         </Col>
 
