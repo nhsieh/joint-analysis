@@ -450,6 +450,21 @@ const Dashboard: React.FC = () => {
               Total Spent by Person
             </span>
           }
+          extra={
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Text style={{ fontSize: 14, color: '#666' }}>Grand Total Spent:</Text>
+              <Statistic
+                value={totals.reduce((sum, total) => sum + total.total, 0)}
+                precision={2}
+                prefix="$"
+                valueStyle={{
+                  color: '#cf1322',
+                  fontSize: 24,
+                  fontWeight: 'bold'
+                }}
+              />
+            </div>
+          }
           style={{ marginBottom: 24 }}
           variant='borderless'
           hoverable
@@ -463,7 +478,7 @@ const Dashboard: React.FC = () => {
           ) : (
             <Row gutter={[24, 16]} align="top">
               {/* Individual Totals Section */}
-              <Col xs={24} lg={24} xl={18}>
+              <Col xs={24}>
                 <Row gutter={[24, 24]}>
                   {people.map((person) => {
                     const personTotal = totals.find(t => t.person === person.name);
@@ -478,19 +493,15 @@ const Dashboard: React.FC = () => {
                           hoverable
                           style={{ height: '100%', minHeight: '420px' }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                             <Text strong style={{ fontSize: 18 }}>{person.name}</Text>
-                          </div>
-
-                          {/* Total Section - Centered Above Chart */}
-                          <div style={{ textAlign: 'center', marginBottom: 24 }}>
                             <Statistic
                               value={totalAmount}
                               precision={2}
                               prefix="$"
                               valueStyle={{
                                 color: totalAmount > 0 ? '#cf1322' : totalAmount < 0 ? '#3f8600': '#666666',
-                                fontSize: '28px',
+                                fontSize: '24px',
                                 fontWeight: 'bold'
                               }}
                             />
@@ -600,40 +611,6 @@ const Dashboard: React.FC = () => {
                     );
                   })}
                 </Row>
-              </Col>
-
-              {/* Grand Total Section */}
-              <Col xs={24} lg={24} xl={6}>
-                <Card
-                  size="small"
-                  style={{
-                    textAlign: 'center',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    border: 'none',
-                    height: 'fit-content',
-                    position: 'sticky',
-                    top: '24px'
-                  }}
-                  hoverable
-                >
-                  <div style={{ color: 'white' }}>
-                    <Text style={{ color: 'white', fontSize: 16, fontWeight: 500 }}>
-                      Grand Total Spent
-                    </Text>
-                    <div style={{ marginTop: 8 }}>
-                      <Statistic
-                        value={totals.reduce((sum, total) => sum + total.total, 0)}
-                        precision={2}
-                        prefix="$"
-                        valueStyle={{
-                          color: 'white',
-                          fontSize: 32,
-                          fontWeight: 'bold'
-                        }}
-                      />
-                    </div>
-                  </div>
-                </Card>
               </Col>
             </Row>
           )}

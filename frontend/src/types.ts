@@ -38,6 +38,6 @@ export interface Archive {
 }
 
 export interface PersonTotal {
-  name: string;
+  person: string;
   total: number;
 }
