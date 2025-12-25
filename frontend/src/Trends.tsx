@@ -13,43 +13,8 @@ import {
   LineChartOutlined,
 } from '@ant-design/icons';
 import { Line, Pie } from '@ant-design/charts';
-
-interface Archive {
-  id: string;
-  description?: string;
-  archived_at: string;
-  transaction_count: number;
-  total_amount: number;
-  person_totals?: PersonTotal[];
-  created_at: string;
-  updated_at: string;
-}
-
-interface PersonTotal {
-  name: string;
-  total: number;
-}
-
-interface Transaction {
-  id: string;
-  description: string;
-  amount: number;
-  assigned_to: string[];
-  category_id: string;
-  transaction_date: string;
-}
-
-interface Person {
-  id: string;
-  name: string;
-}
-
-interface Category {
-  id: string;
-  name: string;
-  description?: string;
-  color?: string;
-}
+import { Archive, Transaction, Person, Category, PersonTotal } from './types';
+import { getCategoryColor } from './utils';
 
 interface CategorySpendingData {
   archive: string;
@@ -284,6 +249,8 @@ const Trends: React.FC = () => {
   // Get unique archive labels for selector
   const archiveLabels: string[] = Array.from(new Set(categorySpendingData.map(d => d.archive))).sort();
 
+
+
   // Filter and group data for pie charts by person
   const getPieDataByPerson = () => {
     if (!selectedArchive) return [];
@@ -415,11 +382,19 @@ const Trends: React.FC = () => {
                     <Card size="small" title={person}>
                       <Pie
                         key={`${person}-${selectedArchive}-${JSON.stringify(data)}`}
-                        data={data}
+                        data={data.map(d => ({
+                          ...d,
+                          color: getCategoryColor(d.type, categories),
+                        }))}
                         angleField="value"
                         colorField="type"
                         radius={0.8}
                         innerRadius={0.6}
+                        scale={{
+                          color: {
+                            range: data.map(d => getCategoryColor(d.type, categories)),
+                          },
+                        }}
                         legend={{
                           position: 'bottom',
                         }}

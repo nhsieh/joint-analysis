@@ -29,39 +29,8 @@ import {
 import { Pie } from '@ant-design/charts';
 import { UploadProps, RcFile } from 'antd/es/upload';
 import { ColumnsType } from 'antd/es/table';
-
-interface Transaction {
-  id: string;
-  description: string;
-  amount: number;
-  assigned_to: string[];
-  date_uploaded: string;
-  file_name: string;
-  transaction_date: string;
-  posted_date: string;
-  card_number: string;
-  category_id: string;
-}
-
-interface Person {
-  id: string;
-  name: string;
-  email?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Category {
-  id: string;
-  name: string;
-  description?: string;
-  color?: string;
-}
-
-interface PersonTotal {
-  person: string;
-  total: number;
-}
+import { Transaction, Person, Category, PersonTotal } from './types';
+import { getCategoryColor } from './utils';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -126,31 +95,7 @@ const Dashboard: React.FC = () => {
   };
 
   // Define a consistent color palette for categories
-  const getCategoryColor = (categoryName: string) => {
-    // First, try to find the category in the database and use its color
-    const category = categories.find(c => c.name === categoryName);
-    if (category && category.color) {
-      return category.color;
-    }
 
-    // Fallback color palette for categories not in database or without colors
-    const colorPalette = [
-      '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-      '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
-      '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
-      '#c49c94', '#f7b6d3', '#c7c7c7', '#dbdb8d', '#9edae5'
-    ];
-
-    // Create a hash of the category name to ensure consistent color assignment
-    let hash = 0;
-    for (let i = 0; i < categoryName.length; i++) {
-      const char = categoryName.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-
-    return colorPalette[Math.abs(hash) % colorPalette.length];
-  };
 
   // Function to get pie chart data for a specific person
   const getPieChartData = (personName: string) => {
@@ -178,7 +123,7 @@ const Dashboard: React.FC = () => {
       .map(([name, value]) => ({
         name,
         value,
-        color: getCategoryColor(name),
+        color: getCategoryColor(name, categories),
       }))
       .sort((a, b) => b.value - a.value); // Sort by amount descending
 
