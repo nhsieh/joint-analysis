@@ -33,14 +33,14 @@ const NavMenu: React.FC = () => {
       label: <Link to="/">Dashboard</Link>,
     },
     {
-      key: '/archives',
-      icon: <InboxOutlined />,
-      label: <Link to="/archives">Archives</Link>,
-    },
-    {
       key: '/trends',
       icon: <LineChartOutlined />,
       label: <Link to="/trends">Trends</Link>,
+    },
+    {
+      key: '/archives',
+      icon: <InboxOutlined />,
+      label: <Link to="/archives">Archives</Link>,
     },
     {
       key: '/settings',
