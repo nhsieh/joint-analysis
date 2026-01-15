@@ -101,7 +101,7 @@ const Dashboard: React.FC = () => {
   const getPieChartData = (personName: string) => {
     // Filter transactions assigned to this person
     const personTransactions = transactions.filter(t =>
-      (t.assigned_to || []).includes(personName) && t.amount > 0 // Only include debits (expenses)
+      (t.assigned_to || []).includes(personName) // Include both debits and credits
     );
 
     // Group by category
@@ -125,7 +125,7 @@ const Dashboard: React.FC = () => {
         value,
         color: getCategoryColor(name, categories),
       }))
-      .sort((a, b) => b.value - a.value); // Sort by amount descending
+      .sort((a, b) => Math.abs(b.value) - Math.abs(a.value)); // Sort by absolute amount descending
 
     return chartData;
   };
@@ -484,7 +484,7 @@ const Dashboard: React.FC = () => {
                     const personTotal = totals.find(t => t.person === person.name);
                     const totalAmount = personTotal ? personTotal.total : 0;
                     const chartData = getPieChartData(person.name);
-                    const hasExpenses = chartData.length > 0 && chartData.some(d => d.value > 0);
+                    const hasTransactions = chartData.length > 0 && chartData.some(d => d.value !== 0);
 
                     return (
                       <Col xs={24} lg={12} xl={8} key={person.id}>
@@ -509,7 +509,7 @@ const Dashboard: React.FC = () => {
 
                           {/* Pie Chart Section - Larger and More Prominent */}
                           <div style={{ width: '100%' }}>
-                            {!hasExpenses ? (
+                            {!hasTransactions ? (
                               <div style={{
                                 textAlign: 'center',
                                 padding: '60px 20px',
@@ -544,13 +544,15 @@ const Dashboard: React.FC = () => {
                                   <Pie
                                     key={`${person.name}-${JSON.stringify(chartData.map(item => ({ name: item.name, value: item.value })))}`}
                                     data={(() => {
-                                      const total = chartData.reduce((sum, d) => sum + d.value, 0);
-                                      return chartData.map(item => ({
-                                        type: item.name, // Keep original name for pie chart
-                                        value:  Number(item.value.toFixed(2)),
-                                        originalName: item.name,
-                                        color: item.color
-                                      }));
+                                      // Use absolute values for the pie chart since it can't display negative values
+                                      return chartData
+                                        .filter(item => item.value !== 0)
+                                        .map(item => ({
+                                          type: item.name,
+                                          value: Number(Math.abs(item.value).toFixed(2)),
+                                          originalValue: item.value, // Keep original for legend
+                                          color: item.color
+                                        }));
                                     })()}
                                     angleField="value"
                                     colorField="type"
@@ -576,31 +578,38 @@ const Dashboard: React.FC = () => {
                                   padding: '16px' // Add padding all around legend
                                 }}>
                                   {(() => {
-                                    const total = chartData.reduce((sum, d) => sum + d.value, 0);
-                                    return chartData.map((item, index) => (
-                                      <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                                        <div
-                                          style={{
-                                            width: '12px',
-                                            height: '12px',
-                                            borderRadius: '50%',
-                                            backgroundColor: item.color,
-                                            marginTop: '2px',
-                                            flexShrink: 0
-                                          }}
-                                        />
-                                        <div style={{ fontSize: '12px', lineHeight: '1.2', flex: 1 }}>
-                                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontWeight: 500, color: '#333' }}>
-                                              {item.name} ({((item.value / total) * 100).toFixed(1)}%)
-                                            </span>
-                                            <span style={{ color: '#666', fontSize: '11px' }}>
-                                              ${item.value.toFixed(2)}
-                                            </span>
+                                    // Calculate total based on absolute values for percentage
+                                    const totalAbsolute = chartData.reduce((sum, d) => sum + Math.abs(d.value), 0);
+                                    return chartData
+                                      .filter(item => item.value !== 0)
+                                      .map((item, index) => (
+                                        <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                          <div
+                                            style={{
+                                              width: '12px',
+                                              height: '12px',
+                                              borderRadius: '50%',
+                                              backgroundColor: item.color,
+                                              marginTop: '2px',
+                                              flexShrink: 0
+                                            }}
+                                          />
+                                          <div style={{ fontSize: '12px', lineHeight: '1.2', flex: 1 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                              <span style={{ fontWeight: 500, color: '#333' }}>
+                                                {item.name} ({((Math.abs(item.value) / totalAbsolute) * 100).toFixed(1)}%)
+                                              </span>
+                                              <span style={{
+                                                color: item.value < 0 ? '#3f8600' : '#666',
+                                                fontSize: '11px',
+                                                fontWeight: item.value < 0 ? 600 : 400
+                                              }}>
+                                                {item.value < 0 ? '-' : ''}${Math.abs(item.value).toFixed(2)}
+                                              </span>
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
-                                    ));
+                                      ));
                                   })()}
                                 </div>
                                 </div>
