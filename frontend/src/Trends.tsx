@@ -114,10 +114,10 @@ const Trends: React.FC = () => {
       return { name: cat.name, topLevelName: cat.name };
     };
 
-    // Sort archives by date
-    const sortedArchives = [...archives].sort(
-      (a, b) => new Date(a.archived_at).getTime() - new Date(b.archived_at).getTime()
-    );
+    // Sort archives by date and limit to the most recent 12
+    const sortedArchives = [...archives]
+      .sort((a, b) => new Date(a.archived_at).getTime() - new Date(b.archived_at).getTime())
+      .slice(-12);
 
     for (const archive of sortedArchives) {
       const archiveLabel = archive.description || new Date(archive.archived_at).toLocaleDateString();
