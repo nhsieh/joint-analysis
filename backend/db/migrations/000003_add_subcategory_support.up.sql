@@ -25,3 +25,11 @@ FROM categories c WHERE c.name = 'Travel' AND c.parent_id IS NULL;
 INSERT INTO categories (name, description, color, parent_id)
 SELECT 'Gas & Charging', 'Gas stations and EV charging', c.color, c.id
 FROM categories c WHERE c.name = 'Transportation' AND c.parent_id IS NULL;
+
+INSERT INTO categories (name, description, color, parent_id)
+SELECT 'Insurance', 'Insurance-related expenses', c.color, c.id
+FROM categories c WHERE c.name = 'Transportation' AND c.parent_id IS NULL;
+
+INSERT INTO categories (name, description, color, parent_id)
+SELECT 'Parking', 'Parking-related expenses', c.color, c.id
+FROM categories c WHERE c.name = 'Transportation' AND c.parent_id IS NULL;
