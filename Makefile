@@ -18,6 +18,8 @@ help:
 	@echo "  generate-db      - Generate database code using sqlc"
 	@echo "  generate-docs    - Generate API documentation using Swagger"
 	@echo "  docs-serve       - Generate and serve API documentation locally"
+	@echo "  db-export        - Export local database as a SQL backup to backups/"
+	@echo "  db-import        - Import a SQL backup (usage: make db-import FILE=<path>)"
 	@echo "  clean            - Remove all containers and volumes"
 
 test:
@@ -110,3 +112,17 @@ docs-serve: generate-docs
 	@echo "Starting documentation server..."
 	@echo "Open http://localhost:8080/swagger/index.html in your browser"
 	pushd backend && go run main.go & popd
+
+# Export local database as a backup (default: backups/backup_<timestamp>.sql)
+db-export:
+	@mkdir -p backups
+	$(eval BACKUP_FILE := backups/backup_$(shell date +%Y%m%d_%H%M%S).sql)
+	docker-compose exec -T postgres pg_dump -U postgres jointanalysis > $(BACKUP_FILE)
+	@echo "Database exported to $(BACKUP_FILE)"
+
+# Import a database backup (usage: make db-import FILE=backups/backup_<timestamp>.sql)
+db-import:
+	@if [ -z "$(FILE)" ]; then echo "Usage: make db-import FILE=<path-to-backup.sql>"; exit 1; fi
+	@echo "Importing $(FILE) into jointanalysis..."
+	docker-compose exec -T postgres psql -U postgres jointanalysis < $(FILE)
+	@echo "Import complete."
