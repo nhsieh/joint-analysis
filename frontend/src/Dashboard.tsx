@@ -377,23 +377,25 @@ const Dashboard: React.FC = () => {
           value={categoryId || undefined}
           onChange={(value) => updateTransactionCategory(record.id, value || null)}
           allowClear
+          showSearch
+          optionFilterProp="label"
         >
           {categories.map((category) => {
             const subs = category.subcategories || [];
             if (subs.length > 0) {
               return [
-                <Option key={category.id} value={category.id}>
+                <Option key={category.id} value={category.id} label={category.name}>
                   <span style={{ color: category.color, fontWeight: 600 }}>{category.name}</span>
                 </Option>,
                 ...subs.map((sub) => (
-                  <Option key={sub.id} value={sub.id}>
+                  <Option key={sub.id} value={sub.id} label={`${category.name} / ${sub.name}`}>
                     <span style={{ color: category.color, paddingLeft: 8 }}>↳ {sub.name}</span>
                   </Option>
                 )),
               ];
             }
             return (
-              <Option key={category.id} value={category.id}>
+              <Option key={category.id} value={category.id} label={category.name}>
                 <span style={{ color: category.color }}>
                   {category.name}
                 </span>

@@ -9,3 +9,5 @@ frontend/build
 /.env
 # Ignore the .DS_Store file (macOS)
 /.DS_Store
+# Ignore the db backups
+backups
