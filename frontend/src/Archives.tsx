@@ -61,6 +61,8 @@ interface Category {
   name: string;
   description?: string;
   color?: string;
+  parent_id?: string;
+  subcategories?: Category[];
 }
 
 const { Title, Text } = Typography;
@@ -114,6 +116,18 @@ const Archives: React.FC = () => {
       console.error('Error fetching categories:', error);
     }
   };
+
+  const flatCategories = React.useMemo(() => {
+    const flat: Category[] = [];
+    const flatten = (cats: Category[]) => {
+      cats.forEach(c => {
+        flat.push(c);
+        if (c.subcategories) flatten(c.subcategories);
+      });
+    };
+    flatten(categories);
+    return flat;
+  }, [categories]);
 
   const fetchArchivedTransactions = async (archiveId: string) => {
     try {
@@ -219,14 +233,23 @@ const Archives: React.FC = () => {
       dataIndex: 'category_id',
       key: 'category_id',
       render: (categoryId: string) => {
-        const category = categories.find(c => c.id === categoryId);
-        return category ? (
+        const category = flatCategories.find(c => c.id === categoryId);
+        if (!category) return '-';
+        if (category.parent_id) {
+          const parent = flatCategories.find(c => c.id === category.parent_id);
+          return (
+            <span style={{ color: parent?.color || category.color }}>
+              {parent ? `${parent.name} / ` : ''}{category.name}
+            </span>
+          );
+        }
+        return (
           <span style={{ color: category.color }}>
             {category.name}
           </span>
-        ) : '-';
+        );
       },
-      width: 120,
+      width: 150,
     },
     {
       title: 'Amount',
