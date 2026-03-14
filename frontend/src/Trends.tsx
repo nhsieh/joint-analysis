@@ -14,7 +14,7 @@ import {
 } from '@ant-design/icons';
 import { Line, Pie } from '@ant-design/charts';
 import { Archive, Transaction, Person, Category, PersonTotal } from './types';
-import { getCategoryColor } from './utils';
+import { getCategoryColor, generateColorVariants } from './utils';
 
 interface CategorySpendingData {
   archive: string;
@@ -49,6 +49,8 @@ const Trends: React.FC = () => {
   const [totalSpendingData, setTotalSpendingData] = useState<TotalSpendingData[]>([]);
   const [balanceData, setBalanceData] = useState<SpendingBalanceData[]>([]);
   const [topCategoriesData, setTopCategoriesData] = useState<any[]>([]);
+  // drillDownState maps personName → top-level category name being drilled into
+  const [drillDownState, setDrillDownState] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
     fetchData();
@@ -249,54 +251,60 @@ const Trends: React.FC = () => {
   // Get unique archive labels for selector
   const archiveLabels: string[] = Array.from(new Set(categorySpendingData.map(d => d.archive))).sort();
 
+  // Flatten nested category tree for parent lookups
+  const flatCategories = React.useMemo(() => {
+    const flat: Category[] = [];
+    const flatten = (cats: Category[]) => cats.forEach(c => { flat.push(c); if (c.subcategories) flatten(c.subcategories); });
+    flatten(categories);
+    return flat;
+  }, [categories]);
 
-
-  // Filter and group data for pie charts by person
-  const getPieDataByPerson = () => {
+  // Filter and group data for pie charts by person, with optional drill-down
+  const getPieDataByPerson = (drillDownCategoryName?: string | null) => {
     if (!selectedArchive) return [];
 
-    // Filter data for selected archive
     const filteredData = categorySpendingData.filter(d => d.archive === selectedArchive);
 
-    // Group by person
-    const byPerson = filteredData.reduce((acc, curr) => {
-      if (!acc[curr.person]) {
-        acc[curr.person] = [];
-      }
+    // Roll up subcategories or drill in
+    const aggregated: Record<string, Record<string, number>> = {};
 
-      // Check if category already exists for this person
-      const existingCategory = acc[curr.person].find(item => item.category === curr.category);
-      if (existingCategory) {
-        existingCategory.amount += curr.amount;
+    for (const d of filteredData) {
+      const cat = flatCategories.find(c => c.name === d.category);
+
+      let bucketName: string;
+      if (drillDownCategoryName) {
+        // Only include items belonging to the drilled-in top-level category
+        const parentName = cat?.parent_id
+          ? flatCategories.find(c => c.id === cat.parent_id)?.name
+          : cat?.name;
+        if (parentName !== drillDownCategoryName && d.category !== drillDownCategoryName) continue;
+        bucketName = d.category;
       } else {
-        acc[curr.person].push({
-          category: curr.category,
-          amount: curr.amount,
-        });
+        // Roll up subcategories to parent
+        if (cat?.parent_id) {
+          bucketName = flatCategories.find(c => c.id === cat.parent_id)?.name || d.category;
+        } else {
+          bucketName = d.category;
+        }
       }
-      return acc;
-    }, {} as Record<string, Array<{ category: string; amount: number }>>);
 
-    return Object.entries(byPerson)
-      .map(([person, data]) => ({
+      if (!aggregated[d.person]) aggregated[d.person] = {};
+      aggregated[d.person][bucketName] = (aggregated[d.person][bucketName] || 0) + d.amount;
+    }
+
+    return Object.entries(aggregated)
+      .map(([person, cats]) => ({
         person,
-        data: data
-          .map(d => ({
-            type: d.category,
-            value: parseFloat(d.amount.toFixed(2)),
-          }))
-          .sort((a, b) => b.value - a.value), // Sort by value descending
+        data: Object.entries(cats)
+          .map(([category, amount]) => ({ type: category, value: parseFloat(amount.toFixed(2)) }))
+          .sort((a, b) => b.value - a.value),
       }))
       .sort((a, b) => {
-        // "Joint" comes first
         if (a.person === 'Joint') return -1;
         if (b.person === 'Joint') return 1;
-        // Then alphabetically
         return a.person.localeCompare(b.person);
       });
   };
-
-  const pieDataByPerson = getPieDataByPerson();
 
   // Chart configurations
   const totalSpendingConfig = {
@@ -343,6 +351,8 @@ const Trends: React.FC = () => {
       </div>
     );
   }
+
+  const pieDataByPerson = getPieDataByPerson();
 
   return (
     <div style={{ padding: 24 }}>
@@ -392,14 +402,43 @@ const Trends: React.FC = () => {
             ) : (
               <Row gutter={[16, 16]}>
                 {pieDataByPerson.map(({ person, data }) => {
-                  const personTotal = data.reduce((sum, d) => sum + d.value, 0);
+                  const drillDownCategoryName = drillDownState[person] || null;
+                  const drillData = drillDownCategoryName
+                    ? getPieDataByPerson(drillDownCategoryName).find(p => p.person === person)?.data || []
+                    : data;
+                  const personTotal = drillData.reduce((sum, d) => sum + d.value, 0);
+
+                  // Build color map for drill-down
+                  const getDrillColor = (itemType: string, index: number): string => {
+                    if (!drillDownCategoryName) return getCategoryColor(itemType, categories);
+                    const parentCat = flatCategories.find(c => c.name === drillDownCategoryName);
+                    const baseColor = parentCat?.color || '#1890ff';
+                    const variants = generateColorVariants(baseColor, drillData.length);
+                    return variants[index] || baseColor;
+                  };
+
                   return (
                     <Col xs={24} sm={24} md={12} lg={8} key={person}>
                       <Card
                         size="small"
                         title={
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>{person}</span>
+                            <div>
+                              <span>{person}</span>
+                              {drillDownCategoryName && (
+                                <div style={{ marginTop: 2 }}>
+                                  <span
+                                    onClick={() => setDrillDownState(prev => ({ ...prev, [person]: null }))}
+                                    style={{ fontSize: 11, color: '#1890ff', cursor: 'pointer' }}
+                                  >
+                                    ← Back
+                                  </span>
+                                  <span style={{ fontSize: 11, color: '#999', marginLeft: 4 }}>
+                                    {drillDownCategoryName} breakdown
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                             <span style={{ fontWeight: 'normal', color: '#666' }}>
                               ${personTotal.toFixed(2)}
                             </span>
@@ -415,10 +454,10 @@ const Trends: React.FC = () => {
                           alignItems: 'center',
                         }}>
                           <Pie
-                            key={`${person}-${selectedArchive}-${JSON.stringify(data)}`}
-                            data={data.map(d => ({
+                            key={`${person}-${selectedArchive}-${drillDownCategoryName || 'top'}`}
+                            data={drillData.map((d, i) => ({
                               ...d,
-                              color: getCategoryColor(d.type, categories),
+                              color: getDrillColor(d.type, i),
                             }))}
                             angleField="value"
                             colorField="type"
@@ -426,7 +465,7 @@ const Trends: React.FC = () => {
                             innerRadius={0.3}
                             scale={{
                               color: {
-                                range: data.map(d => getCategoryColor(d.type, categories)),
+                                range: drillData.map((d, i) => getDrillColor(d.type, i)),
                               },
                             }}
                             legend={false}
@@ -444,31 +483,55 @@ const Trends: React.FC = () => {
                           padding: '16px'
                         }}>
                           {(() => {
-                            const total = data.reduce((sum, d) => sum + d.value, 0);
-                            return data.map((item, index) => (
-                              <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                            const total = drillData.reduce((sum, d) => sum + d.value, 0);
+                            return drillData.map((item, index) => {
+                              const topCat = !drillDownCategoryName
+                                ? categories.find(c => c.name === item.type)
+                                : null;
+                              const isDrillable = topCat && topCat.subcategories && topCat.subcategories.length > 0;
+                              const color = getDrillColor(item.type, index);
+                              return (
                                 <div
-                                  style={{
-                                    width: '12px',
-                                    height: '12px',
-                                    borderRadius: '50%',
-                                    backgroundColor: getCategoryColor(item.type, categories),
-                                    marginTop: '2px',
-                                    flexShrink: 0
+                                  key={index}
+                                  onClick={() => {
+                                    if (isDrillable) {
+                                      setDrillDownState(prev => ({ ...prev, [person]: item.type }));
+                                    }
                                   }}
-                                />
-                                <div style={{ fontSize: '12px', lineHeight: '1.2', flex: 1 }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontWeight: 500, color: '#333' }}>
-                                      {item.type} ({((item.value / total) * 100).toFixed(1)}%)
-                                    </span>
-                                    <span style={{ color: '#666', fontSize: '11px' }}>
-                                      ${item.value.toFixed(2)}
-                                    </span>
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    gap: '8px',
+                                    cursor: isDrillable ? 'pointer' : 'default',
+                                    borderRadius: 4,
+                                    padding: '2px 4px',
+                                    margin: '-2px -4px',
+                                  }}
+                                  title={isDrillable ? `Click to drill into ${item.type}` : undefined}
+                                >
+                                  <div
+                                    style={{
+                                      width: '12px',
+                                      height: '12px',
+                                      borderRadius: '50%',
+                                      backgroundColor: color,
+                                      marginTop: '2px',
+                                      flexShrink: 0
+                                    }}
+                                  />
+                                  <div style={{ fontSize: '12px', lineHeight: '1.2', flex: 1 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <span style={{ fontWeight: 500, color: isDrillable ? '#1890ff' : '#333', textDecoration: isDrillable ? 'underline' : 'none' }}>
+                                        {item.type} ({((item.value / total) * 100).toFixed(1)}%)
+                                      </span>
+                                      <span style={{ color: '#666', fontSize: '11px' }}>
+                                        ${item.value.toFixed(2)}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ));
+                              );
+                            });
                           })()}
                         </div>
                       </div>

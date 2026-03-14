@@ -31,30 +31,42 @@ WHERE id = $1;
 
 -- Categories queries
 -- name: GetCategories :many
-SELECT id, name, description, color, created_at, updated_at
+SELECT id, name, description, color, parent_id, created_at, updated_at
 FROM categories
 ORDER BY name;
 
+-- name: GetTopLevelCategories :many
+SELECT id, name, description, color, parent_id, created_at, updated_at
+FROM categories
+WHERE parent_id IS NULL
+ORDER BY name;
+
+-- name: GetSubcategoriesByParent :many
+SELECT id, name, description, color, parent_id, created_at, updated_at
+FROM categories
+WHERE parent_id = $1
+ORDER BY name;
+
 -- name: GetCategoryByID :one
-SELECT id, name, description, color, created_at, updated_at
+SELECT id, name, description, color, parent_id, created_at, updated_at
 FROM categories
 WHERE id = $1;
 
 -- name: GetCategoryByName :one
-SELECT id, name, description, color, created_at, updated_at
+SELECT id, name, description, color, parent_id, created_at, updated_at
 FROM categories
 WHERE name = $1;
 
 -- name: CreateCategory :one
-INSERT INTO categories (name, description, color)
-VALUES ($1, $2, $3)
-RETURNING id, name, description, color, created_at, updated_at;
+INSERT INTO categories (name, description, color, parent_id)
+VALUES ($1, $2, $3, $4)
+RETURNING id, name, description, color, parent_id, created_at, updated_at;
 
 -- name: UpdateCategory :one
 UPDATE categories
 SET name = $2, description = $3, color = $4, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, name, description, color, created_at, updated_at;
+RETURNING id, name, description, color, parent_id, created_at, updated_at;
 
 -- name: DeleteCategory :exec
 DELETE FROM categories

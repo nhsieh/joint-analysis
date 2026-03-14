@@ -3,6 +3,8 @@ export interface Category {
   name: string;
   description?: string;
   color?: string;
+  parent_id?: string;
+  subcategories?: Category[];
 }
 
 export interface Person {

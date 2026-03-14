@@ -147,7 +147,7 @@ const docTemplate = `{
         },
         "/api/categories": {
             "get": {
-                "description": "Retrieve all categories from the database",
+                "description": "Retrieve all categories as a nested tree (top-level categories with subcategories embedded)",
                 "produces": [
                     "application/json"
                 ],
@@ -157,7 +157,7 @@ const docTemplate = `{
                 "summary": "Get all categories",
                 "responses": {
                     "200": {
-                        "description": "List of categories",
+                        "description": "Nested list of top-level categories with subcategories",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -175,7 +175,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Create a new category in the system",
+                "description": "Create a new category in the system. Use parent_id to create a subcategory (max 2 levels).",
                 "consumes": [
                     "application/json"
                 ],
@@ -188,7 +188,7 @@ const docTemplate = `{
                 "summary": "Create category",
                 "parameters": [
                     {
-                        "description": "Category data (name required, description and color optional)",
+                        "description": "Category data (name required; description, color, parent_id optional)",
                         "name": "category",
                         "in": "body",
                         "required": true,
@@ -230,7 +230,7 @@ const docTemplate = `{
         },
         "/api/categories/{id}": {
             "put": {
-                "description": "Update an existing category",
+                "description": "Update an existing category. Cannot re-parent a category that has children.",
                 "consumes": [
                     "application/json"
                 ],
@@ -853,6 +853,15 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "parent_id": {
+                    "type": "string"
+                },
+                "subcategories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.Category"
+                    }
                 },
                 "updated_at": {
                     "type": "string"

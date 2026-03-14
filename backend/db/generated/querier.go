@@ -38,6 +38,8 @@ type Querier interface {
 	GetCategories(ctx context.Context) ([]Category, error)
 	GetCategoryByID(ctx context.Context, id pgtype.UUID) (Category, error)
 	GetCategoryByName(ctx context.Context, name string) (Category, error)
+	GetTopLevelCategories(ctx context.Context) ([]Category, error)
+	GetSubcategoriesByParent(ctx context.Context, parentID pgtype.UUID) ([]Category, error)
 	// People queries
 	GetPeople(ctx context.Context) ([]Person, error)
 	GetPersonByID(ctx context.Context, id pgtype.UUID) (Person, error)

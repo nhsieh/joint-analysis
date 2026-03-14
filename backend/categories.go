@@ -15,10 +15,10 @@ import (
 // Category handler functions
 
 // @Summary Get all categories
-// @Description Retrieve all categories from the database
+// @Description Retrieve all categories as a nested tree (top-level categories with subcategories embedded)
 // @Tags categories
 // @Produce json
-// @Success 200 {array} Category "List of categories"
+// @Success 200 {array} Category "Nested list of top-level categories with subcategories"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/categories [get]
 func getCategories(c *gin.Context) {
@@ -29,34 +29,57 @@ func getCategories(c *gin.Context) {
 		return
 	}
 
-	var categories []Category
-	for _, dbCategory := range dbCategories {
-		category := Category{
-			ID:        uuid.UUID(dbCategory.ID.Bytes).String(),
-			Name:      dbCategory.Name,
-			CreatedAt: dbCategory.CreatedAt.Time,
-			UpdatedAt: dbCategory.UpdatedAt.Time,
-		}
+	// Build a map of all categories for quick lookup, and collect top-level ones
+	categoryMap := make(map[string]*Category)
+	var topLevel []*Category
 
+	for _, dbCategory := range dbCategories {
+		category := &Category{
+			ID:            uuid.UUID(dbCategory.ID.Bytes).String(),
+			Name:          dbCategory.Name,
+			Subcategories: []Category{},
+			CreatedAt:     dbCategory.CreatedAt.Time,
+			UpdatedAt:     dbCategory.UpdatedAt.Time,
+		}
 		if dbCategory.Description.Valid {
 			category.Description = &dbCategory.Description.String
 		}
 		if dbCategory.Color.Valid {
 			category.Color = &dbCategory.Color.String
 		}
-
-		categories = append(categories, category)
+		if dbCategory.ParentID.Valid {
+			parentIDStr := uuid.UUID(dbCategory.ParentID.Bytes).String()
+			category.ParentID = &parentIDStr
+		}
+		categoryMap[category.ID] = category
 	}
 
-	c.JSON(http.StatusOK, categories)
+	// Attach subcategories to parents and collect top-level categories
+	for _, cat := range categoryMap {
+		if cat.ParentID != nil {
+			if parent, ok := categoryMap[*cat.ParentID]; ok {
+				parent.Subcategories = append(parent.Subcategories, *cat)
+			}
+		} else {
+			topLevel = append(topLevel, cat)
+		}
+	}
+
+	// Convert to value slice for JSON response
+	result := make([]Category, 0, len(topLevel))
+	for _, cat := range topLevel {
+		result = append(result, *cat)
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // @Summary Create category
-// @Description Create a new category in the system
+// @Description Create a new category in the system. Use parent_id to create a subcategory (max 2 levels).
 // @Tags categories
 // @Accept json
 // @Produce json
-// @Param category body Category true "Category data (name required, description and color optional)"
+// @Param category body Category true "Category data (name required; description, color, parent_id optional)"
 // @Success 201 {object} Category "Created category"
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 409 {object} map[string]interface{} "Category already exists"
@@ -83,9 +106,34 @@ func createCategory(c *gin.Context) {
 		}
 	}
 
+	// Handle parent_id validation (enforce 2-level max)
+	var parentIDpg pgtype.UUID
+	if category.ParentID != nil && *category.ParentID != "" {
+		parentUUID, err := uuid.Parse(*category.ParentID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parent_id format"})
+			return
+		}
+		parentIDpg = pgtype.UUID{Bytes: parentUUID, Valid: true}
+
+		// Validate parent exists
+		parent, err := queries.GetCategoryByID(context.Background(), parentIDpg)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Parent category not found"})
+			return
+		}
+
+		// Enforce 2-level max: parent must itself be a top-level category
+		if parent.ParentID.Valid {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot create subcategory of a subcategory (max 2 levels)"})
+			return
+		}
+	}
+
 	// Create parameters for the generated function
 	params := generated.CreateCategoryParams{
-		Name: category.Name,
+		Name:     category.Name,
+		ParentID: parentIDpg,
 	}
 
 	// Handle optional fields
@@ -118,12 +166,16 @@ func createCategory(c *gin.Context) {
 	if dbCategory.Color.Valid {
 		resultCategory.Color = &dbCategory.Color.String
 	}
+	if dbCategory.ParentID.Valid {
+		parentIDStr := uuid.UUID(dbCategory.ParentID.Bytes).String()
+		resultCategory.ParentID = &parentIDStr
+	}
 
 	c.JSON(http.StatusCreated, resultCategory)
 }
 
 // @Summary Update category
-// @Description Update an existing category
+// @Description Update an existing category. Cannot re-parent a category that has children.
 // @Tags categories
 // @Accept json
 // @Produce json
@@ -149,9 +201,31 @@ func updateCategory(c *gin.Context) {
 		return
 	}
 
+	categoryUUIDpg := pgtype.UUID{Bytes: categoryUUID, Valid: true}
+
+	// Fetch existing category to check for children
+	existing, err := queries.GetCategoryByID(context.Background(), categoryUUIDpg)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Category not found"})
+		return
+	}
+
+	// Block re-parenting a category that already has children
+	if !existing.ParentID.Valid {
+		// It's a top-level category — check if it has subcategories
+		subs, err := queries.GetSubcategoriesByParent(context.Background(), categoryUUIDpg)
+		if err == nil && len(subs) > 0 {
+			// If request is trying to assign a parent_id, block it
+			if category.ParentID != nil && *category.ParentID != "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot re-parent a category that already has subcategories"})
+				return
+			}
+		}
+	}
+
 	// Create parameters for the generated function
 	params := generated.UpdateCategoryParams{
-		ID:   pgtype.UUID{Bytes: categoryUUID, Valid: true},
+		ID:   categoryUUIDpg,
 		Name: category.Name,
 	}
 
@@ -184,6 +258,10 @@ func updateCategory(c *gin.Context) {
 	}
 	if dbCategory.Color.Valid {
 		resultCategory.Color = &dbCategory.Color.String
+	}
+	if dbCategory.ParentID.Valid {
+		parentIDStr := uuid.UUID(dbCategory.ParentID.Bytes).String()
+		resultCategory.ParentID = &parentIDStr
 	}
 
 	c.JSON(http.StatusOK, resultCategory)

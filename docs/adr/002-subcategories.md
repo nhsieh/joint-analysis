@@ -11,7 +11,7 @@ Extend the flat categories system to support a 2-level hierarchy (Category → S
 | Hierarchy depth | 2 levels only (Category → Subcategory) |
 | Transaction assignment | Any level (top-level OR subcategory) |
 | Existing categories | Remain as top-level parents |
-| Subcategory color | Inherit parent's color (no separate picker) |
+| Subcategory color | Inherit parent's color (no separate picker) in list views; distinct variants in drill-down |
 | Default subcategories | Seeded in migration |
 | Dashboard view | Top-level aggregation with drill-down |
 
@@ -101,9 +101,9 @@ Add to `Category` interface:
 
 ### Category Selector (`frontend/src/Dashboard.tsx`)
 
-Change flat `Select` dropdown to grouped select using Ant Design `OptGroup`:
-- Top-level categories as group labels (also selectable as option values)
-- Subcategories appear as indented options within their parent's group
+Flat `Select` dropdown with visual grouping (no `OptGroup`):
+- Top-level categories rendered as bold options
+- Subcategories appear below their parent with a `↳` prefix, all selectable
 
 ### Pie Charts (`frontend/src/Dashboard.tsx`)
 
@@ -115,6 +115,8 @@ Change flat `Select` dropdown to grouped select using Ant Design `OptGroup`:
 ### Color Utility (`frontend/src/utils.ts`)
 
 Update `getCategoryColor()`: if the category has a `parentId`, look up and return the parent's color from the full category list.
+
+Add `generateColorVariants(baseHex, count)`: in drill-down mode, each subcategory gets its own distinct color — variants are generated from the parent's base color by stepping lightness from 35% to 65% and slightly shifting hue for each slice, so they're clearly related but visually differentiated. This function is shared across Dashboard and Trends.
 
 ---
 

@@ -29,12 +29,14 @@ type Person struct {
 
 // Category represents a transaction category
 type Category struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Description *string   `json:"description"`
-	Color       *string   `json:"color"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID            string     `json:"id"`
+	Name          string     `json:"name"`
+	Description   *string    `json:"description"`
+	Color         *string    `json:"color"`
+	ParentID      *string    `json:"parent_id,omitempty"`
+	Subcategories []Category `json:"subcategories,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 // PersonTotal represents the total amount for a person

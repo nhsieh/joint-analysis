@@ -48,6 +48,7 @@ type Category struct {
 	Name        string           `json:"name"`
 	Description pgtype.Text      `json:"description"`
 	Color       pgtype.Text      `json:"color"`
+	ParentID    pgtype.UUID      `json:"parent_id"`
 	CreatedAt   pgtype.Timestamp `json:"created_at"`
 	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
 }

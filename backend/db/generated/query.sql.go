@@ -127,25 +127,27 @@ func (q *Queries) CreateArchivePersonTotal(ctx context.Context, arg CreateArchiv
 }
 
 const createCategory = `-- name: CreateCategory :one
-INSERT INTO categories (name, description, color)
-VALUES ($1, $2, $3)
-RETURNING id, name, description, color, created_at, updated_at
+INSERT INTO categories (name, description, color, parent_id)
+VALUES ($1, $2, $3, $4)
+RETURNING id, name, description, color, parent_id, created_at, updated_at
 `
 
 type CreateCategoryParams struct {
 	Name        string      `json:"name"`
 	Description pgtype.Text `json:"description"`
 	Color       pgtype.Text `json:"color"`
+	ParentID    pgtype.UUID `json:"parent_id"`
 }
 
 func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error) {
-	row := q.db.QueryRow(ctx, createCategory, arg.Name, arg.Description, arg.Color)
+	row := q.db.QueryRow(ctx, createCategory, arg.Name, arg.Description, arg.Color, arg.ParentID)
 	var i Category
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.Description,
 		&i.Color,
+		&i.ParentID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -600,7 +602,7 @@ func (q *Queries) GetArchives(ctx context.Context) ([]Archive, error) {
 }
 
 const getCategories = `-- name: GetCategories :many
-SELECT id, name, description, color, created_at, updated_at
+SELECT id, name, description, color, parent_id, created_at, updated_at
 FROM categories
 ORDER BY name
 `
@@ -620,6 +622,7 @@ func (q *Queries) GetCategories(ctx context.Context) ([]Category, error) {
 			&i.Name,
 			&i.Description,
 			&i.Color,
+			&i.ParentID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -634,7 +637,7 @@ func (q *Queries) GetCategories(ctx context.Context) ([]Category, error) {
 }
 
 const getCategoryByID = `-- name: GetCategoryByID :one
-SELECT id, name, description, color, created_at, updated_at
+SELECT id, name, description, color, parent_id, created_at, updated_at
 FROM categories
 WHERE id = $1
 `
@@ -647,6 +650,7 @@ func (q *Queries) GetCategoryByID(ctx context.Context, id pgtype.UUID) (Category
 		&i.Name,
 		&i.Description,
 		&i.Color,
+		&i.ParentID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -654,7 +658,7 @@ func (q *Queries) GetCategoryByID(ctx context.Context, id pgtype.UUID) (Category
 }
 
 const getCategoryByName = `-- name: GetCategoryByName :one
-SELECT id, name, description, color, created_at, updated_at
+SELECT id, name, description, color, parent_id, created_at, updated_at
 FROM categories
 WHERE name = $1
 `
@@ -667,10 +671,81 @@ func (q *Queries) GetCategoryByName(ctx context.Context, name string) (Category,
 		&i.Name,
 		&i.Description,
 		&i.Color,
+		&i.ParentID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getTopLevelCategories = `-- name: GetTopLevelCategories :many
+SELECT id, name, description, color, parent_id, created_at, updated_at
+FROM categories
+WHERE parent_id IS NULL
+ORDER BY name
+`
+
+func (q *Queries) GetTopLevelCategories(ctx context.Context) ([]Category, error) {
+	rows, err := q.db.Query(ctx, getTopLevelCategories)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Category
+	for rows.Next() {
+		var i Category
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Color,
+			&i.ParentID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getSubcategoriesByParent = `-- name: GetSubcategoriesByParent :many
+SELECT id, name, description, color, parent_id, created_at, updated_at
+FROM categories
+WHERE parent_id = $1
+ORDER BY name
+`
+
+func (q *Queries) GetSubcategoriesByParent(ctx context.Context, parentID pgtype.UUID) ([]Category, error) {
+	rows, err := q.db.Query(ctx, getSubcategoriesByParent, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Category
+	for rows.Next() {
+		var i Category
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Color,
+			&i.ParentID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getPeople = `-- name: GetPeople :many
@@ -1119,7 +1194,7 @@ const updateCategory = `-- name: UpdateCategory :one
 UPDATE categories
 SET name = $2, description = $3, color = $4, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, name, description, color, created_at, updated_at
+RETURNING id, name, description, color, parent_id, created_at, updated_at
 `
 
 type UpdateCategoryParams struct {
@@ -1142,6 +1217,7 @@ func (q *Queries) UpdateCategory(ctx context.Context, arg UpdateCategoryParams) 
 		&i.Name,
 		&i.Description,
 		&i.Color,
+		&i.ParentID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

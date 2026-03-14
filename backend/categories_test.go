@@ -343,3 +343,151 @@ func TestDeleteCategory(t *testing.T) {
 		t.Skip("Skipping until transaction category assignment is implemented")
 	})
 }
+
+// TestSubcategorySupport tests subcategory creation and hierarchy enforcement
+func TestSubcategorySupport(t *testing.T) {
+	if err := cleanupTestData(); err != nil {
+		t.Fatalf("Failed to cleanup test data: %v", err)
+	}
+
+	t.Run("should create subcategory with valid parent_id", func(t *testing.T) {
+		parentID, err := createTestCategory("Parent Category", "Top level", "#FF5733")
+		assertNoError(t, err)
+
+		requestBody := map[string]interface{}{
+			"name":      "Child Category",
+			"parent_id": parentID,
+		}
+		body, err := json.Marshal(requestBody)
+		assertNoError(t, err)
+
+		resp := makeRequest("POST", "/api/categories", bytes.NewBuffer(body))
+		assertStatusCode(t, http.StatusCreated, resp.Code)
+
+		var category Category
+		assertNoError(t, parseJSONResponse(resp, &category))
+
+		if category.Name != "Child Category" {
+			t.Errorf("Expected name 'Child Category', got '%s'", category.Name)
+		}
+		if category.ParentID == nil || *category.ParentID != parentID {
+			t.Errorf("Expected parent_id '%s', got %v", parentID, category.ParentID)
+		}
+	})
+
+	t.Run("should fail with non-existent parent_id", func(t *testing.T) {
+		requestBody := map[string]interface{}{
+			"name":      "Orphan Category",
+			"parent_id": "550e8400-e29b-41d4-a716-446655440000",
+		}
+		body, err := json.Marshal(requestBody)
+		assertNoError(t, err)
+
+		resp := makeRequest("POST", "/api/categories", bytes.NewBuffer(body))
+		assertStatusCode(t, http.StatusBadRequest, resp.Code)
+	})
+
+	t.Run("should fail when creating subcategory of a subcategory (depth enforcement)", func(t *testing.T) {
+		parentID, err := createTestCategory("Top Level Cat", "Top level", "#33FF57")
+		assertNoError(t, err)
+
+		// Create a subcategory (level 2)
+		subBody, err := json.Marshal(map[string]interface{}{
+			"name":      "Level 2 Cat",
+			"parent_id": parentID,
+		})
+		assertNoError(t, err)
+		resp := makeRequest("POST", "/api/categories", bytes.NewBuffer(subBody))
+		assertStatusCode(t, http.StatusCreated, resp.Code)
+
+		var sub Category
+		assertNoError(t, parseJSONResponse(resp, &sub))
+
+		// Try to create a sub-subcategory (level 3) — should fail
+		deepBody, err := json.Marshal(map[string]interface{}{
+			"name":      "Level 3 Cat",
+			"parent_id": sub.ID,
+		})
+		assertNoError(t, err)
+		resp = makeRequest("POST", "/api/categories", bytes.NewBuffer(deepBody))
+		assertStatusCode(t, http.StatusBadRequest, resp.Code)
+	})
+
+	t.Run("GET /api/categories returns nested structure", func(t *testing.T) {
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		parentID, err := createTestCategory("Nested Parent", "Parent", "#1890FF")
+		assertNoError(t, err)
+
+		subBody, err := json.Marshal(map[string]interface{}{
+			"name":      "Nested Child",
+			"parent_id": parentID,
+		})
+		assertNoError(t, err)
+		makeRequest("POST", "/api/categories", bytes.NewBuffer(subBody))
+
+		resp := makeRequest("GET", "/api/categories", nil)
+		assertStatusCode(t, http.StatusOK, resp.Code)
+
+		var categories []Category
+		assertNoError(t, parseJSONResponse(resp, &categories))
+
+		// "Nested Child" should NOT appear as a top-level entry
+		for _, cat := range categories {
+			if cat.Name == "Nested Child" {
+				t.Error("Subcategory 'Nested Child' should not appear at top-level")
+			}
+		}
+
+		// "Nested Parent" should appear at top level with the subcategory nested inside
+		found := false
+		for _, cat := range categories {
+			if cat.Name == "Nested Parent" {
+				found = true
+				if len(cat.Subcategories) != 1 {
+					t.Errorf("Expected 1 subcategory under 'Nested Parent', got %d", len(cat.Subcategories))
+				} else if cat.Subcategories[0].Name != "Nested Child" {
+					t.Errorf("Expected subcategory name 'Nested Child', got '%s'", cat.Subcategories[0].Name)
+				}
+			}
+		}
+		if !found {
+			t.Error("Expected 'Nested Parent' to appear in top-level categories")
+		}
+	})
+
+	t.Run("deleting top-level category cascades to subcategories", func(t *testing.T) {
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		parentID, err := createTestCategory("Cascade Parent", "Will be deleted", "#FF0000")
+		assertNoError(t, err)
+
+		subBody, err := json.Marshal(map[string]interface{}{
+			"name":      "Cascade Child",
+			"parent_id": parentID,
+		})
+		assertNoError(t, err)
+		makeRequest("POST", "/api/categories", bytes.NewBuffer(subBody))
+
+		// Delete the parent
+		resp := makeRequest("DELETE", fmt.Sprintf("/api/categories/%s", parentID), nil)
+		assertStatusCode(t, http.StatusOK, resp.Code)
+
+		// Verify both parent and child are gone
+		resp = makeRequest("GET", "/api/categories", nil)
+		assertStatusCode(t, http.StatusOK, resp.Code)
+
+		var categories []Category
+		assertNoError(t, parseJSONResponse(resp, &categories))
+
+		for _, cat := range categories {
+			if cat.Name == "Cascade Parent" || cat.Name == "Cascade Child" {
+				t.Errorf("Expected '%s' to be deleted by cascade", cat.Name)
+			}
+		}
+	})
+}
