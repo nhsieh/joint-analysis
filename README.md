@@ -13,7 +13,7 @@ A full-stack expense tracking application that allows users to upload CSV files 
 
 ## Tech Stack
 
-- **Frontend**: React with TypeScript
+- **Frontend**: React with TypeScript, built with Vite
 - **Backend**: Go (Golang) with Gin framework
 - **Database**: PostgreSQL
 - **Containerization**: Docker & Docker Compose
@@ -26,10 +26,12 @@ joint-analysis/
 ├── Makefile                  # Build automation and common tasks
 ├── README.md                 # Project documentation
 ├── docker-compose.yml       # Local development environment setup
-├── frontend/                 # React application
+├── frontend/                 # React application (Vite)
 │   ├── src/
 │   │   └── App.tsx          # Main React component
-│   ├── public/
+│   ├── public/              # Static assets
+│   ├── index.html           # Vite entry point
+│   ├── vite.config.ts       # Vite configuration
 │   ├── package.json
 │   └── Dockerfile
 ├── backend/                  # Go API server

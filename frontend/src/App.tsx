@@ -21,7 +21,7 @@ import Trends from './Trends';
 const { Header, Content } = Layout;
 const { Title } = Typography;
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
 
 const NavMenu: React.FC = () => {
   const location = useLocation();

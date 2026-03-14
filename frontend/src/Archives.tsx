@@ -65,7 +65,7 @@ interface Category {
 
 const { Title, Text } = Typography;
 const { Option } = Select;
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
 
 const Archives: React.FC = () => {
   const [archives, setArchives] = useState<Archive[]>([]);

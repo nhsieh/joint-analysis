@@ -34,7 +34,7 @@ import { getCategoryColor, generateColorVariants } from './utils';
 
 const { Text } = Typography;
 const { Option, OptGroup } = Select;
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
 
 const Dashboard: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);

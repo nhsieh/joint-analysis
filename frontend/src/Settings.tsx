@@ -32,7 +32,7 @@ interface Person {
 }
 
 const { Title, Text } = Typography;
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
 
 const Settings: React.FC = () => {
   const [people, setPeople] = useState<Person[]>([]);
