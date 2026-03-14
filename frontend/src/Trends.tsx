@@ -96,6 +96,23 @@ const Trends: React.FC = () => {
     const totalSpending: TotalSpendingData[] = [];
     const topCategories: Map<string, Map<string, number>> = new Map(); // archive -> category -> total
 
+    // Flatten the nested category tree so subcategories can be resolved by ID
+    const allCategories: Category[] = [];
+    const flattenCats = (cats: Category[]) => cats.forEach(c => { allCategories.push(c); if (c.subcategories) flattenCats(c.subcategories); });
+    flattenCats(categories);
+
+    // Helper: resolve the effective (top-level) category name for a transaction.
+    // Subcategories are rolled up to their parent so charts group consistently.
+    const resolveCategory = (categoryId: string): { name: string; topLevelName: string } => {
+      const cat = allCategories.find(c => c.id === categoryId);
+      if (!cat) return { name: 'Uncategorized', topLevelName: 'Uncategorized' };
+      if (cat.parent_id) {
+        const parent = allCategories.find(c => c.id === cat.parent_id);
+        return { name: cat.name, topLevelName: parent?.name || cat.name };
+      }
+      return { name: cat.name, topLevelName: cat.name };
+    };
+
     // Sort archives by date
     const sortedArchives = [...archives].sort(
       (a, b) => new Date(a.archived_at).getTime() - new Date(b.archived_at).getTime()
@@ -114,19 +131,18 @@ const Trends: React.FC = () => {
 
         // Process each transaction
         for (const transaction of transactions) {
-          const category = categories.find(c => c.id === transaction.category_id);
-          const categoryName = category?.name || 'Uncategorized';
+          const { name: categoryName, topLevelName } = resolveCategory(transaction.category_id);
 
           // Skip Reimbursable category
-          if (categoryName === 'Reimbursable') {
+          if (topLevelName === 'Reimbursable') {
             continue;
           }
 
-          // Track for top categories
+          // Track for top categories (group by top-level category)
           const archiveCategoryMap = topCategories.get(archiveLabel)!;
           archiveCategoryMap.set(
-            categoryName,
-            (archiveCategoryMap.get(categoryName) || 0) + transaction.amount
+            topLevelName,
+            (archiveCategoryMap.get(topLevelName) || 0) + transaction.amount
           );
 
           // Calculate amount per person for this transaction
@@ -144,7 +160,7 @@ const Trends: React.FC = () => {
               continue;
             }
 
-            // Add to category spending data
+            // Add to category spending data (store subcategory name so pie chart can drill down)
             categorySpending.push({
               archive: archiveLabel,
               person: person.name,
@@ -158,8 +174,7 @@ const Trends: React.FC = () => {
         const personTotals = new Map<string, number>();
 
         for (const transaction of transactions) {
-          const category = categories.find(c => c.id === transaction.category_id);
-          const categoryName = category?.name || 'Uncategorized';
+          const { topLevelName: categoryName } = resolveCategory(transaction.category_id);
 
           // Skip Reimbursable category for totals
           if (categoryName === 'Reimbursable') {
