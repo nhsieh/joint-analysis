@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/csv"
+	"fmt"
 	"log"
 	"math/big"
 	"net/http"
@@ -46,6 +47,11 @@ func uploadCSV(c *gin.Context) {
 	transactions := make([]Transaction, 0) // Initialize as empty slice instead of nil
 	fileName := header.Filename
 	skippedRows := 0
+
+	// Track how many times each dedup key appears in the current CSV file.
+	// This allows multiple identical rows in the same CSV to all be imported
+	// while still preventing re-import of rows that already exist in the DB.
+	seenCounts := make(map[string]int64)
 
 	// Skip header row if present
 	start := 0
@@ -145,6 +151,17 @@ func uploadCSV(c *gin.Context) {
 			params.CardNumber = pgtype.Text{String: cardNumber, Valid: true}
 		}
 
+		// Build a dedup key from all identifying fields and track how many
+		// times this row has appeared so far in the current CSV file.
+		dedupKey := fmt.Sprintf("%s|%s|%s|%s|%s",
+			description,
+			params.Amount.Int.String()+"e"+strconv.Itoa(int(params.Amount.Exp)),
+			params.TransactionDate.Time.Format("2006-01-02"),
+			params.PostedDate.Time.Format("2006-01-02"),
+			params.CardNumber.String,
+		)
+		seenCounts[dedupKey]++
+
 		// Check for duplicate transaction before inserting
 		duplicateParams := generated.FindDuplicateTransactionParams{
 			Description:     description,
@@ -161,8 +178,10 @@ func uploadCSV(c *gin.Context) {
 			continue
 		}
 
-		// If duplicate exists, skip this transaction
-		if count > 0 {
+		// Skip only if the DB already has at least as many copies as we've
+		// seen so far in this CSV. This lets identical rows within one CSV
+		// all be imported on first upload while still preventing re-import.
+		if count >= seenCounts[dedupKey] {
 			log.Printf("Skipping duplicate transaction: %s, amount: %f", description, amount)
 			skippedRows++
 			continue

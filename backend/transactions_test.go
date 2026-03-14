@@ -678,6 +678,68 @@ func TestUploadCSV(t *testing.T) {
 		}
 	})
 
+	t.Run("should import identical rows within the same CSV", func(t *testing.T) {
+		// Clean data before test
+		if err := cleanupTestData(); err != nil {
+			t.Fatalf("Failed to cleanup test data: %v", err)
+		}
+
+		// CSV with two rows that have identical field values
+		sameRowCSV := `Transaction Date,Posted Date,Card No.,Description,Category,Debit,Credit
+2023-01-01,2023-01-01,****1234,Coffee,Food,5.50,
+2023-01-01,2023-01-01,****1234,Coffee,Food,5.50,`
+
+		// First upload: both identical rows should be imported
+		body1, contentType1 := createCSVFile(t, "same_row.csv", sameRowCSV)
+		req1, err := http.NewRequest("POST", "/api/upload-csv", body1)
+		assertNoError(t, err)
+		req1.Header.Set("Content-Type", contentType1)
+
+		resp1 := makeRequestWithCustomRequest(req1)
+		assertStatusCode(t, http.StatusOK, resp1.Code)
+
+		var result1 map[string]interface{}
+		err = json.Unmarshal(resp1.Body.Bytes(), &result1)
+		assertNoError(t, err)
+
+		transactions1, ok := result1["transactions"].([]interface{})
+		if !ok {
+			t.Fatal("Expected transactions array in response")
+		}
+		if len(transactions1) != 2 {
+			t.Errorf("Expected 2 transactions from first upload (identical rows allowed), got %d", len(transactions1))
+		}
+		skipped1, _ := result1["skipped_rows"].(float64)
+		if skipped1 != 0 {
+			t.Errorf("Expected 0 skipped rows on first upload, got %v", skipped1)
+		}
+
+		// Second upload: both rows already exist in DB, both should be skipped
+		body2, contentType2 := createCSVFile(t, "same_row2.csv", sameRowCSV)
+		req2, err := http.NewRequest("POST", "/api/upload-csv", body2)
+		assertNoError(t, err)
+		req2.Header.Set("Content-Type", contentType2)
+
+		resp2 := makeRequestWithCustomRequest(req2)
+		assertStatusCode(t, http.StatusOK, resp2.Code)
+
+		var result2 map[string]interface{}
+		err = json.Unmarshal(resp2.Body.Bytes(), &result2)
+		assertNoError(t, err)
+
+		transactions2, ok := result2["transactions"].([]interface{})
+		if !ok {
+			t.Fatal("Expected transactions array in response")
+		}
+		if len(transactions2) != 0 {
+			t.Errorf("Expected 0 transactions on re-upload, got %d", len(transactions2))
+		}
+		skipped2, _ := result2["skipped_rows"].(float64)
+		if skipped2 != 2 {
+			t.Errorf("Expected 2 skipped rows on re-upload, got %v", skipped2)
+		}
+	})
+
 	t.Run("should skip duplicate transactions", func(t *testing.T) {
 		// Clean data before test
 		if err := cleanupTestData(); err != nil {
