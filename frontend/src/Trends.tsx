@@ -11,6 +11,7 @@ import {
 } from 'antd';
 import {
   LineChartOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons';
 import { Line, Pie } from '@ant-design/charts';
 import { Archive, Transaction, Person, Category, PersonTotal } from './types';
@@ -376,6 +377,15 @@ const Trends: React.FC = () => {
           <Title level={2} style={{ margin: 0 }}>
             <LineChartOutlined /> Spending Trends
           </Title>
+        </Col>
+      </Row>
+
+      <Row style={{ marginBottom: 16 }}>
+        <Col>
+          <span style={{ color: '#8c8c8c', fontSize: 13 }}>
+            <InfoCircleOutlined style={{ marginRight: 6 }} />
+            Transactions that are categorized as "Reimbursable" are excluded from all charts.
+          </span>
         </Col>
       </Row>
 
