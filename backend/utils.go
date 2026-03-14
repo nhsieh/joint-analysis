@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// CategoryMapping maps CSV categories to our predefined categories
+// CategoryMapping maps categories by name for lookup
 type CategoryMapping struct {
 	categoriesByName map[string]generated.Category
 }
@@ -68,34 +68,38 @@ func handleDatabaseError(err error) (statusCode int, message string) {
 
 // Category mapping functions
 
-// mapTransactionCategory determines the best category for a transaction
-func (cm *CategoryMapping) mapTransactionCategory(csvCategory string) *generated.Category {
-	// First try direct mapping from CSV category
-	if category, exists := cm.categoriesByName[csvCategory]; exists {
-		return &category
-	}
-
-	// Map common CSV categories to our categories
-	csvCategoryMap := map[string]string{
-		"Gas/Automotive":      "Transportation",
-		"Insurance":           "Healthcare",
-		"Dining":              "Food & Dining",
-		"Other Travel":        "Travel",
-		"Merchandise":         "Shopping",
-		"Fee/Interest Charge": "Fees",
-	}
-
-	if mappedCategory, exists := csvCategoryMap[csvCategory]; exists {
-		if category, exists := cm.categoriesByName[mappedCategory]; exists {
+// mapTransactionCategory determines the best category for a transaction using DB rules.
+// It loads all rules ordered by priority and matches against description and csvCategory.
+func (cm *CategoryMapping) mapTransactionCategory(description, csvCategory string) *generated.Category {
+	rules, err := queries.GetRulesForMatching(context.Background())
+	if err != nil {
+		log.Printf("Warning: failed to load categorization rules: %v", err)
+		// Fall back to "Other"
+		if category, exists := cm.categoriesByName["Other"]; exists {
 			return &category
+		}
+		return nil
+	}
+
+	descLower := strings.ToLower(description)
+	csvCatLower := strings.ToLower(csvCategory)
+
+	for _, rule := range rules {
+		matchLower := strings.ToLower(rule.MatchValue)
+		if strings.Contains(descLower, matchLower) || strings.Contains(csvCatLower, matchLower) {
+			// Load the category from the categoriesByName map by UUID match
+			for _, cat := range cm.categoriesByName {
+				if cat.ID == rule.CategoryID {
+					return &cat
+				}
+			}
 		}
 	}
 
-	// Default to "Other" if no match found
+	// Default to "Other" if no rule matched
 	if category, exists := cm.categoriesByName["Other"]; exists {
 		return &category
 	}
-
 	return nil
 }
 

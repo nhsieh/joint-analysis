@@ -103,7 +103,7 @@ generate-docs:
 		echo "Installing swag CLI tool..."; \
 		go install github.com/swaggo/swag/cmd/swag@v1.8.12; \
 	fi
-	pushd backend && swag init && popd
+	pushd backend && PATH="$$PATH:$$(go env GOPATH)/bin" swag init && popd
 	@echo "API documentation generated successfully!"
 	@echo "Documentation will be available at http://localhost:8081/swagger/index.html when the server is running"
 

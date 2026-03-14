@@ -125,7 +125,7 @@ func uploadCSV(c *gin.Context) {
 
 		// Map category if category mapping is available
 		if categoryMapping != nil {
-			if mappedCategory := categoryMapping.mapTransactionCategory(csvCategory); mappedCategory != nil {
+			if mappedCategory := categoryMapping.mapTransactionCategory(description, csvCategory); mappedCategory != nil {
 				params.CategoryID = pgtype.UUID{Bytes: mappedCategory.ID.Bytes, Valid: mappedCategory.ID.Valid}
 			}
 		}

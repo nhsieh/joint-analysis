@@ -264,3 +264,36 @@ CROSS JOIN LATERAL unnest(t.assigned_to) AS person_id
 WHERE t.assigned_to IS NOT NULL
   AND array_length(t.assigned_to, 1) > 0
   AND t.archive_id IS NULL;
+
+-- Categorization rules queries
+-- name: GetRules :many
+SELECT r.id, r.match_value, r.category_id, c.name as category_name, r.priority, r.created_at, r.updated_at
+FROM categorization_rules r
+JOIN categories c ON r.category_id = c.id
+ORDER BY r.priority ASC, r.created_at ASC;
+
+-- name: GetRuleByID :one
+SELECT r.id, r.match_value, r.category_id, c.name as category_name, r.priority, r.created_at, r.updated_at
+FROM categorization_rules r
+JOIN categories c ON r.category_id = c.id
+WHERE r.id = $1;
+
+-- name: GetRulesForMatching :many
+SELECT id, match_value, category_id
+FROM categorization_rules
+ORDER BY priority ASC, created_at ASC;
+
+-- name: CreateRule :one
+INSERT INTO categorization_rules (match_value, category_id, priority)
+VALUES ($1, $2, $3)
+RETURNING id, match_value, category_id, priority, created_at, updated_at;
+
+-- name: UpdateRule :one
+UPDATE categorization_rules
+SET match_value = $2, category_id = $3, priority = $4, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, match_value, category_id, priority, created_at, updated_at;
+
+-- name: DeleteRule :exec
+DELETE FROM categorization_rules
+WHERE id = $1;

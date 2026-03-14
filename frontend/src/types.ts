@@ -43,3 +43,13 @@ export interface PersonTotal {
   person: string;
   total: number;
 }
+
+export interface Rule {
+  id: string;
+  match_value: string;
+  category_id: string;
+  category_name: string;
+  priority: number;
+  created_at: string;
+  updated_at: string;
+}

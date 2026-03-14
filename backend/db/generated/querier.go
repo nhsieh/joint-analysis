@@ -58,6 +58,13 @@ type Querier interface {
 	UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Person, error)
 	UpdateTransactionAssignment(ctx context.Context, arg UpdateTransactionAssignmentParams) (UpdateTransactionAssignmentRow, error)
 	UpdateTransactionCategory(ctx context.Context, arg UpdateTransactionCategoryParams) (UpdateTransactionCategoryRow, error)
+	// Categorization rules queries
+	GetRules(ctx context.Context) ([]GetRulesRow, error)
+	GetRuleByID(ctx context.Context, id pgtype.UUID) (GetRulesRow, error)
+	GetRulesForMatching(ctx context.Context) ([]GetRulesForMatchingRow, error)
+	CreateRule(ctx context.Context, arg CreateRuleParams) (CategorizationRule, error)
+	UpdateRule(ctx context.Context, arg UpdateRuleParams) (CategorizationRule, error)
+	DeleteRule(ctx context.Context, id pgtype.UUID) error
 }
 
 var _ Querier = (*Queries)(nil)

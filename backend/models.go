@@ -67,3 +67,14 @@ type Archive struct {
 type ArchiveRequest struct {
 	Description string `json:"description"`
 }
+
+// Rule represents a categorization rule
+type Rule struct {
+	ID           string    `json:"id"`
+	MatchValue   string    `json:"match_value"`
+	CategoryID   string    `json:"category_id"`
+	CategoryName string    `json:"category_name"`
+	Priority     int32     `json:"priority"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}

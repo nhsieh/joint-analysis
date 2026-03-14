@@ -1347,3 +1347,171 @@ func (q *Queries) UpdateTransactionCategory(ctx context.Context, arg UpdateTrans
 	)
 	return i, err
 }
+
+const getRules = `-- name: GetRules :many
+SELECT r.id, r.match_value, r.category_id, c.name as category_name, r.priority, r.created_at, r.updated_at
+FROM categorization_rules r
+JOIN categories c ON r.category_id = c.id
+ORDER BY r.priority ASC, r.created_at ASC
+`
+
+type GetRulesRow struct {
+	ID           pgtype.UUID      `json:"id"`
+	MatchValue   string           `json:"match_value"`
+	CategoryID   pgtype.UUID      `json:"category_id"`
+	CategoryName string           `json:"category_name"`
+	Priority     int32            `json:"priority"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+// Categorization rules queries
+func (q *Queries) GetRules(ctx context.Context) ([]GetRulesRow, error) {
+	rows, err := q.db.Query(ctx, getRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRulesRow
+	for rows.Next() {
+		var i GetRulesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.MatchValue,
+			&i.CategoryID,
+			&i.CategoryName,
+			&i.Priority,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRuleByID = `-- name: GetRuleByID :one
+SELECT r.id, r.match_value, r.category_id, c.name as category_name, r.priority, r.created_at, r.updated_at
+FROM categorization_rules r
+JOIN categories c ON r.category_id = c.id
+WHERE r.id = $1
+`
+
+func (q *Queries) GetRuleByID(ctx context.Context, id pgtype.UUID) (GetRulesRow, error) {
+	row := q.db.QueryRow(ctx, getRuleByID, id)
+	var i GetRulesRow
+	err := row.Scan(
+		&i.ID,
+		&i.MatchValue,
+		&i.CategoryID,
+		&i.CategoryName,
+		&i.Priority,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getRulesForMatching = `-- name: GetRulesForMatching :many
+SELECT id, match_value, category_id
+FROM categorization_rules
+ORDER BY priority ASC, created_at ASC
+`
+
+type GetRulesForMatchingRow struct {
+	ID         pgtype.UUID `json:"id"`
+	MatchValue string      `json:"match_value"`
+	CategoryID pgtype.UUID `json:"category_id"`
+}
+
+func (q *Queries) GetRulesForMatching(ctx context.Context) ([]GetRulesForMatchingRow, error) {
+	rows, err := q.db.Query(ctx, getRulesForMatching)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRulesForMatchingRow
+	for rows.Next() {
+		var i GetRulesForMatchingRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.MatchValue,
+			&i.CategoryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const createRule = `-- name: CreateRule :one
+INSERT INTO categorization_rules (match_value, category_id, priority)
+VALUES ($1, $2, $3)
+RETURNING id, match_value, category_id, priority, created_at, updated_at
+`
+
+type CreateRuleParams struct {
+	MatchValue string      `json:"match_value"`
+	CategoryID pgtype.UUID `json:"category_id"`
+	Priority   int32       `json:"priority"`
+}
+
+func (q *Queries) CreateRule(ctx context.Context, arg CreateRuleParams) (CategorizationRule, error) {
+	row := q.db.QueryRow(ctx, createRule, arg.MatchValue, arg.CategoryID, arg.Priority)
+	var i CategorizationRule
+	err := row.Scan(
+		&i.ID,
+		&i.MatchValue,
+		&i.CategoryID,
+		&i.Priority,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateRule = `-- name: UpdateRule :one
+UPDATE categorization_rules
+SET match_value = $2, category_id = $3, priority = $4, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, match_value, category_id, priority, created_at, updated_at
+`
+
+type UpdateRuleParams struct {
+	ID         pgtype.UUID `json:"id"`
+	MatchValue string      `json:"match_value"`
+	CategoryID pgtype.UUID `json:"category_id"`
+	Priority   int32       `json:"priority"`
+}
+
+func (q *Queries) UpdateRule(ctx context.Context, arg UpdateRuleParams) (CategorizationRule, error) {
+	row := q.db.QueryRow(ctx, updateRule, arg.ID, arg.MatchValue, arg.CategoryID, arg.Priority)
+	var i CategorizationRule
+	err := row.Scan(
+		&i.ID,
+		&i.MatchValue,
+		&i.CategoryID,
+		&i.Priority,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteRule = `-- name: DeleteRule :exec
+DELETE FROM categorization_rules
+WHERE id = $1
+`
+
+func (q *Queries) DeleteRule(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteRule, id)
+	return err
+}

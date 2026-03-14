@@ -141,6 +141,10 @@ func main() {
 	r.POST("/api/archives", createArchive)
 	r.GET("/api/archives", getArchives)
 	r.GET("/api/archives/:id/transactions", getArchiveTransactions)
+	r.GET("/api/rules", getRules)
+	r.POST("/api/rules", createRule)
+	r.PUT("/api/rules/:id", updateRule)
+	r.DELETE("/api/rules/:id", deleteRule)
 
 	port := os.Getenv("PORT")
 	if port == "" {

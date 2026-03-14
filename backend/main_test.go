@@ -145,6 +145,10 @@ func setupTestRouter() {
 	testRouter.POST("/api/archives", createArchive)
 	testRouter.GET("/api/archives", getArchives)
 	testRouter.GET("/api/archives/:id/transactions", getArchiveTransactions)
+	testRouter.GET("/api/rules", getRules)
+	testRouter.POST("/api/rules", createRule)
+	testRouter.PUT("/api/rules/:id", updateRule)
+	testRouter.DELETE("/api/rules/:id", deleteRule)
 }
 
 // cleanupTestData removes all data from test tables
@@ -171,6 +175,10 @@ func cleanupTestData() error {
 
 	if _, err := testDB.Exec(ctx, "DELETE FROM people"); err != nil {
 		return fmt.Errorf("failed to clean people: %w", err)
+	}
+
+	if _, err := testDB.Exec(ctx, "DELETE FROM categorization_rules"); err != nil {
+		return fmt.Errorf("failed to clean categorization_rules: %w", err)
 	}
 
 	// Reinitialize default data

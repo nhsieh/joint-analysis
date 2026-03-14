@@ -76,3 +76,12 @@ type Transaction struct {
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 	ArchiveID       pgtype.UUID      `json:"archive_id"`
 }
+
+type CategorizationRule struct {
+	ID         pgtype.UUID      `json:"id"`
+	MatchValue string           `json:"match_value"`
+	CategoryID pgtype.UUID      `json:"category_id"`
+	Priority   int32            `json:"priority"`
+	CreatedAt  pgtype.Timestamp `json:"created_at"`
+	UpdatedAt  pgtype.Timestamp `json:"updated_at"`
+}
