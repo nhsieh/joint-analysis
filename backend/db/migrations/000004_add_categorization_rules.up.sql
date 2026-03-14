@@ -24,7 +24,7 @@ INSERT INTO categorization_rules (match_value, category_id, priority)
 SELECT 'SUPERMARKET', c.id, 0 FROM categories c WHERE c.name = 'Groceries';
 
 INSERT INTO categorization_rules (match_value, category_id, priority)
-SELECT 'Spotify', c.id, 1 FROM categories c WHERE c.name = 'Entertainment' AND c.parent_id IS NULL;
+SELECT 'Spotify', c.id, 0 FROM categories c WHERE c.name = 'Entertainment' AND c.parent_id IS NULL;
 
 INSERT INTO categorization_rules (match_value, category_id, priority)
 SELECT 'Insurance', c.id, 1 FROM categories c WHERE c.name = 'Other' AND c.parent_id IS NULL;
