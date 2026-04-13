@@ -21,11 +21,19 @@ export interface Transaction {
   amount: number;
   assigned_to: string[];
   date_uploaded: string;
-  file_name: string;
-  transaction_date: string;
-  posted_date: string;
-  card_number: string;
+  file_name?: string;
+  transaction_date?: string;
+  posted_date?: string;
+  card_number?: string;
+  splits?: TransactionSplit[];
+}
+
+export interface TransactionSplit {
+  id?: string;
+  transaction_id?: string;
+  amount: number;
   category_id: string;
+  notes?: string;
 }
 
 export interface Archive {

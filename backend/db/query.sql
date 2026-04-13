@@ -75,21 +75,21 @@ WHERE id = $1;
 -- Transactions queries
 -- name: GetTransactions :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 ORDER BY date_uploaded DESC;
 
 -- name: GetTransactionByID :one
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 WHERE id = $1;
 
 -- name: GetTransactionsByAssignedTo :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 WHERE $1 = ANY(assigned_to)
@@ -97,17 +97,17 @@ ORDER BY date_uploaded DESC;
 
 -- name: GetTransactionsByFileName :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 WHERE file_name = $1
 ORDER BY date_uploaded DESC;
 
 -- name: CreateTransaction :one
-INSERT INTO transactions (description, amount, file_name, transaction_date, posted_date, card_number, category_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO transactions (description, amount, file_name, transaction_date, posted_date, card_number)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
+          transaction_date, posted_date, card_number,
           created_at, updated_at;
 
 -- name: FindDuplicateTransaction :one
@@ -125,7 +125,7 @@ UPDATE transactions
 SET assigned_to = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
+          transaction_date, posted_date, card_number,
           created_at, updated_at;
 
 -- name: AddPersonToTransaction :one
@@ -133,7 +133,7 @@ UPDATE transactions
 SET assigned_to = array_append(COALESCE(assigned_to, '{}'), $2), updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
+          transaction_date, posted_date, card_number,
           created_at, updated_at;
 
 -- name: RemovePersonFromTransaction :one
@@ -141,7 +141,7 @@ UPDATE transactions
 SET assigned_to = array_remove(assigned_to, $2), updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
+          transaction_date, posted_date, card_number,
           created_at, updated_at;
 
 -- name: UnassignTransactionsByPerson :exec
@@ -149,21 +149,36 @@ UPDATE transactions
 SET assigned_to = array_remove(assigned_to, $1), updated_at = CURRENT_TIMESTAMP
 WHERE $1 = ANY(assigned_to);
 
--- name: UpdateTransactionCategory :one
-UPDATE transactions
-SET category_id = $2, updated_at = CURRENT_TIMESTAMP
-WHERE id = $1
-RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
-          created_at, updated_at;
+-- name: GetTransactionSplitsByTransactionID :many
+SELECT id, transaction_id, amount, category_id, notes, created_at, updated_at
+FROM transaction_splits
+WHERE transaction_id = $1
+ORDER BY created_at ASC;
+
+-- name: DeleteTransactionSplitsByTransactionID :exec
+DELETE FROM transaction_splits
+WHERE transaction_id = $1;
+
+-- name: CreateTransactionSplit :one
+INSERT INTO transaction_splits (transaction_id, amount, category_id, notes)
+VALUES ($1, $2, $3, $4)
+RETURNING id, transaction_id, amount, category_id, notes, created_at, updated_at;
 
 -- name: DeleteTransaction :exec
 DELETE FROM transactions
 WHERE id = $1;
 
 -- name: GetTotalsByAssignedTo :many
-SELECT p.name as assigned_to, SUM(t.amount / array_length(t.assigned_to, 1))::numeric as total
+WITH normalized_transaction_totals AS (
+    SELECT t.id,
+           SUM(CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END)::numeric AS normalized_amount
+    FROM transactions t
+    JOIN transaction_splits ts ON ts.transaction_id = t.id
+    GROUP BY t.id
+)
+SELECT p.name as assigned_to, SUM(nt.normalized_amount / array_length(t.assigned_to, 1))::numeric as total
 FROM transactions t
+JOIN normalized_transaction_totals nt ON nt.id = t.id
 CROSS JOIN LATERAL unnest(t.assigned_to) AS person_id
 JOIN people p ON p.id = person_id
 WHERE t.assigned_to IS NOT NULL AND array_length(t.assigned_to, 1) > 0
@@ -171,10 +186,15 @@ GROUP BY p.id, p.name
 ORDER BY p.name;
 
 -- name: GetTotalsByCategory :many
-SELECT c.name as category_name, SUM(t.amount)::numeric as total
-FROM transactions t
-JOIN categories c ON t.category_id = c.id
-WHERE t.category_id IS NOT NULL
+WITH normalized_category_amounts AS (
+    SELECT ts.category_id,
+           CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END AS signed_amount
+    FROM transactions t
+    JOIN transaction_splits ts ON ts.transaction_id = t.id
+)
+SELECT c.name as category_name, SUM(nca.signed_amount)::numeric as total
+FROM normalized_category_amounts nca
+JOIN categories c ON nca.category_id = c.id
 GROUP BY c.id, c.name
 ORDER BY c.name;
 
@@ -210,7 +230,7 @@ WHERE id = $1;
 
 -- name: GetActiveTransactions :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 WHERE archive_id IS NULL
@@ -218,7 +238,7 @@ ORDER BY date_uploaded DESC;
 
 -- name: GetArchivedTransactions :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id, archive_id,
+  transaction_date, posted_date, card_number, archive_id,
        created_at, updated_at
 FROM transactions
 WHERE archive_id = $1
@@ -230,8 +250,17 @@ SET archive_id = $1, updated_at = CURRENT_TIMESTAMP
 WHERE archive_id IS NULL;
 
 -- name: GetActiveTransactionTotals :many
-SELECT p.name as assigned_to, SUM(t.amount / array_length(t.assigned_to, 1))::numeric as total
+WITH normalized_transaction_totals AS (
+    SELECT t.id,
+           SUM(CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END)::numeric AS normalized_amount
+    FROM transactions t
+    JOIN transaction_splits ts ON ts.transaction_id = t.id
+    WHERE t.archive_id IS NULL
+    GROUP BY t.id
+)
+SELECT p.name as assigned_to, SUM(nt.normalized_amount / array_length(t.assigned_to, 1))::numeric as total
 FROM transactions t
+JOIN normalized_transaction_totals nt ON nt.id = t.id
 CROSS JOIN LATERAL unnest(t.assigned_to) AS person_id
 JOIN people p ON p.id = person_id
 WHERE t.assigned_to IS NOT NULL
@@ -258,8 +287,17 @@ DELETE FROM archive_person_totals
 WHERE archive_id = $1;
 
 -- name: GetActiveTransactionGrandTotal :one
-SELECT COALESCE(SUM(t.amount / array_length(t.assigned_to, 1)), 0)::numeric as grand_total
+WITH normalized_transaction_totals AS (
+    SELECT t.id,
+           SUM(CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END)::numeric AS normalized_amount
+    FROM transactions t
+    JOIN transaction_splits ts ON ts.transaction_id = t.id
+    WHERE t.archive_id IS NULL
+    GROUP BY t.id
+)
+SELECT COALESCE(SUM(nt.normalized_amount / array_length(t.assigned_to, 1)), 0)::numeric as grand_total
 FROM transactions t
+JOIN normalized_transaction_totals nt ON nt.id = t.id
 CROSS JOIN LATERAL unnest(t.assigned_to) AS person_id
 WHERE t.assigned_to IS NOT NULL
   AND array_length(t.assigned_to, 1) > 0

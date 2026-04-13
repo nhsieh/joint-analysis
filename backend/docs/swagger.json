@@ -846,9 +846,60 @@
                 }
             }
         },
-        "/api/transactions/{id}/category": {
+        "/api/transactions/{id}/splits": {
+            "get": {
+                "description": "Retrieve split rows for a transaction.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Get transaction splits",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Transaction ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of splits",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/main.TransactionSplit"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Transaction not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
             "put": {
-                "description": "Update the category assignment for a specific transaction",
+                "description": "Replace all split rows for a transaction.",
                 "consumes": [
                     "application/json"
                 ],
@@ -858,7 +909,7 @@
                 "tags": [
                     "transactions"
                 ],
-                "summary": "Update transaction category",
+                "summary": "Replace transaction splits",
                 "parameters": [
                     {
                         "type": "string",
@@ -868,25 +919,23 @@
                         "required": true
                     },
                     {
-                        "description": "Category assignment data",
-                        "name": "category",
+                        "description": "Split rows",
+                        "name": "payload",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "properties": {
-                                "category_id": {
-                                    "type": "string"
-                                }
-                            }
+                            "$ref": "#/definitions/main.splitRequest"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Updated transaction with new category",
+                        "description": "Updated splits",
                         "schema": {
-                            "$ref": "#/definitions/main.Transaction"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/main.TransactionSplit"
+                            }
                         }
                     },
                     "400": {
@@ -1117,9 +1166,6 @@
                 "card_number": {
                     "type": "string"
                 },
-                "category_id": {
-                    "type": "string"
-                },
                 "created_at": {
                     "type": "string"
                 },
@@ -1138,11 +1184,65 @@
                 "posted_date": {
                     "type": "string"
                 },
+                "splits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.TransactionSplit"
+                    }
+                },
                 "transaction_date": {
                     "type": "string"
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "main.TransactionSplit": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "category_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "transaction_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.splitRequest": {
+            "type": "object",
+            "properties": {
+                "splits": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "amount": {
+                                "type": "number"
+                            },
+                            "category_id": {
+                                "type": "string"
+                            },
+                            "notes": {
+                                "type": "string"
+                            }
+                        }
+                    }
                 }
             }
         }

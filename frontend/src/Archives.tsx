@@ -48,7 +48,7 @@ interface Transaction {
   transaction_date: string;
   posted_date: string;
   card_number: string;
-  category_id: string;
+  splits?: { category_id: string; amount: number }[];
 }
 
 interface Person {
@@ -230,23 +230,32 @@ const Archives: React.FC = () => {
     },
     {
       title: 'Category',
-      dataIndex: 'category_id',
+      dataIndex: 'splits',
       key: 'category_id',
-      render: (categoryId: string) => {
-        const category = flatCategories.find(c => c.id === categoryId);
-        if (!category) return '-';
-        if (category.parent_id) {
-          const parent = flatCategories.find(c => c.id === category.parent_id);
-          return (
-            <span style={{ color: parent?.color || category.color }}>
-              {parent ? `${parent.name} / ` : ''}{category.name}
-            </span>
-          );
-        }
+      render: (_: { category_id: string; amount: number }[] | undefined, record: Transaction) => {
+        const splitRows = record.splits || [];
+
+        if (splitRows.length === 0) return '-';
+
         return (
-          <span style={{ color: category.color }}>
-            {category.name}
-          </span>
+          <div style={{ fontSize: 11 }}>
+            {splitRows.map((split, idx) => {
+              const splitCategory = flatCategories.find(c => c.id === split.category_id);
+              const splitText = splitCategory?.parent_id
+                ? `${flatCategories.find(c => c.id === splitCategory.parent_id)?.name || ''}${flatCategories.find(c => c.id === splitCategory.parent_id) ? ' / ' : ''}${splitCategory.name}`
+                : splitCategory?.name || 'Uncategorized';
+              const splitColor = splitCategory?.parent_id
+                ? (flatCategories.find(c => c.id === splitCategory.parent_id)?.color || splitCategory?.color)
+                : splitCategory?.color;
+
+              return (
+                <div key={`${record.id}-split-${idx}`}>
+                  <span style={{ color: splitColor || '#666' }}>{splitText}</span>
+                  {splitRows.length > 1 && `: $${Number(split.amount || 0).toFixed(2)}`}
+                </div>
+              );
+            })}
+          </div>
         );
       },
       width: 150,

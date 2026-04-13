@@ -16,7 +16,7 @@ import (
 
 // CategoryMapping maps categories by name for lookup
 type CategoryMapping struct {
-	categoriesByName map[string]generated.Category
+	categoriesByName map[string]generated.GetCategoriesRow
 }
 
 // Validation functions
@@ -70,7 +70,7 @@ func handleDatabaseError(err error) (statusCode int, message string) {
 
 // mapTransactionCategory determines the best category for a transaction using DB rules.
 // It loads all rules ordered by priority and matches against description and csvCategory.
-func (cm *CategoryMapping) mapTransactionCategory(description, csvCategory string) *generated.Category {
+func (cm *CategoryMapping) mapTransactionCategory(description, csvCategory string) *generated.GetCategoriesRow {
 	rules, err := queries.GetRulesForMatching(context.Background())
 	if err != nil {
 		log.Printf("Warning: failed to load categorization rules: %v", err)
@@ -110,7 +110,7 @@ func initializeCategoryMapping() (*CategoryMapping, error) {
 		return nil, fmt.Errorf("failed to load categories: %w", err)
 	}
 
-	categoriesByName := make(map[string]generated.Category)
+	categoriesByName := make(map[string]generated.GetCategoriesRow)
 	for _, category := range categories {
 		categoriesByName[category.Name] = category
 	}
@@ -183,7 +183,7 @@ func convertUUIDStringsToArray(uuidStrings []string) ([]pgtype.UUID, error) {
 func convertTransaction(t generated.Transaction) Transaction {
 	return convertTransactionFromFields(
 		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
-		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
+		t.TransactionDate, t.PostedDate, t.CardNumber, t.CreatedAt, t.UpdatedAt,
 	)
 }
 
@@ -191,7 +191,7 @@ func convertTransaction(t generated.Transaction) Transaction {
 func convertTransactionFromGetRow(t generated.Transaction) Transaction {
 	return convertTransactionFromFields(
 		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
-		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
+		t.TransactionDate, t.PostedDate, t.CardNumber, t.CreatedAt, t.UpdatedAt,
 	)
 }
 
@@ -199,7 +199,7 @@ func convertTransactionFromGetRow(t generated.Transaction) Transaction {
 func convertTransactionFromUpdateRow(t generated.Transaction) Transaction {
 	return convertTransactionFromFields(
 		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
-		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
+		t.TransactionDate, t.PostedDate, t.CardNumber, t.CreatedAt, t.UpdatedAt,
 	)
 }
 
@@ -207,15 +207,7 @@ func convertTransactionFromUpdateRow(t generated.Transaction) Transaction {
 func convertTransactionFromUpdateAssignmentRow(t generated.UpdateTransactionAssignmentRow) Transaction {
 	return convertTransactionFromFields(
 		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
-		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
-	)
-}
-
-// convertTransactionFromUpdateCategoryRow converts from update category result
-func convertTransactionFromUpdateCategoryRow(t generated.UpdateTransactionCategoryRow) Transaction {
-	return convertTransactionFromFields(
-		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
-		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
+		t.TransactionDate, t.PostedDate, t.CardNumber, t.CreatedAt, t.UpdatedAt,
 	)
 }
 
@@ -230,7 +222,6 @@ func convertTransactionFromFields(
 	transactionDate pgtype.Date,
 	postedDate pgtype.Date,
 	cardNumber pgtype.Text,
-	categoryID pgtype.UUID,
 	createdAt pgtype.Timestamp,
 	updatedAt pgtype.Timestamp,
 ) Transaction {
@@ -274,10 +265,6 @@ func convertTransactionFromFields(
 	}
 	if cardNumber.Valid {
 		result.CardNumber = &cardNumber.String
-	}
-	if categoryID.Valid {
-		categoryStr := uuid.UUID(categoryID.Bytes).String()
-		result.CategoryID = &categoryStr
 	}
 
 	return result
@@ -328,11 +315,6 @@ func convertTransactionFromActiveRow(t generated.GetActiveTransactionsRow) Trans
 	if t.CardNumber.Valid {
 		transaction.CardNumber = &t.CardNumber.String
 	}
-	if t.CategoryID.Valid {
-		categoryID := uuid.UUID(t.CategoryID.Bytes).String()
-		transaction.CategoryID = &categoryID
-	}
-
 	return transaction
 }
 
@@ -380,10 +362,5 @@ func convertTransactionFromArchivedRow(t generated.GetArchivedTransactionsRow) T
 	if t.CardNumber.Valid {
 		transaction.CardNumber = &t.CardNumber.String
 	}
-	if t.CategoryID.Valid {
-		categoryID := uuid.UUID(t.CategoryID.Bytes).String()
-		transaction.CategoryID = &categoryID
-	}
-
 	return transaction
 }

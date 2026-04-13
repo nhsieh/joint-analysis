@@ -17,15 +17,19 @@ type Querier interface {
 	CreateArchive(ctx context.Context, arg CreateArchiveParams) (Archive, error)
 	// Archive person totals queries
 	CreateArchivePersonTotal(ctx context.Context, arg CreateArchivePersonTotalParams) (ArchivePersonTotal, error)
-	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
+	CreateCategory(ctx context.Context, arg CreateCategoryParams) (CreateCategoryRow, error)
 	CreatePerson(ctx context.Context, arg CreatePersonParams) (Person, error)
+	CreateRule(ctx context.Context, arg CreateRuleParams) (CategorizationRule, error)
 	CreateTransaction(ctx context.Context, arg CreateTransactionParams) (CreateTransactionRow, error)
+	CreateTransactionSplit(ctx context.Context, arg CreateTransactionSplitParams) (TransactionSplit, error)
 	DeleteAllTransactions(ctx context.Context) error
 	DeleteArchive(ctx context.Context, id pgtype.UUID) error
 	DeleteArchivePersonTotals(ctx context.Context, archiveID pgtype.UUID) error
 	DeleteCategory(ctx context.Context, id pgtype.UUID) error
 	DeletePerson(ctx context.Context, id pgtype.UUID) error
+	DeleteRule(ctx context.Context, id pgtype.UUID) error
 	DeleteTransaction(ctx context.Context, id pgtype.UUID) error
+	DeleteTransactionSplitsByTransactionID(ctx context.Context, transactionID pgtype.UUID) error
 	FindDuplicateTransaction(ctx context.Context, arg FindDuplicateTransactionParams) (int64, error)
 	GetActiveTransactionGrandTotal(ctx context.Context) (pgtype.Numeric, error)
 	GetActiveTransactionTotals(ctx context.Context) ([]GetActiveTransactionTotalsRow, error)
@@ -35,18 +39,23 @@ type Querier interface {
 	GetArchivedTransactions(ctx context.Context, archiveID pgtype.UUID) ([]GetArchivedTransactionsRow, error)
 	GetArchives(ctx context.Context) ([]Archive, error)
 	// Categories queries
-	GetCategories(ctx context.Context) ([]Category, error)
-	GetCategoryByID(ctx context.Context, id pgtype.UUID) (Category, error)
-	GetCategoryByName(ctx context.Context, name string) (Category, error)
-	GetTopLevelCategories(ctx context.Context) ([]Category, error)
-	GetSubcategoriesByParent(ctx context.Context, parentID pgtype.UUID) ([]Category, error)
+	GetCategories(ctx context.Context) ([]GetCategoriesRow, error)
+	GetCategoryByID(ctx context.Context, id pgtype.UUID) (GetCategoryByIDRow, error)
+	GetCategoryByName(ctx context.Context, name string) (GetCategoryByNameRow, error)
 	// People queries
 	GetPeople(ctx context.Context) ([]Person, error)
 	GetPersonByID(ctx context.Context, id pgtype.UUID) (Person, error)
 	GetPersonByName(ctx context.Context, name string) (Person, error)
+	GetRuleByID(ctx context.Context, id pgtype.UUID) (GetRuleByIDRow, error)
+	// Categorization rules queries
+	GetRules(ctx context.Context) ([]GetRulesRow, error)
+	GetRulesForMatching(ctx context.Context) ([]GetRulesForMatchingRow, error)
+	GetSubcategoriesByParent(ctx context.Context, parentID pgtype.UUID) ([]GetSubcategoriesByParentRow, error)
+	GetTopLevelCategories(ctx context.Context) ([]GetTopLevelCategoriesRow, error)
 	GetTotalsByAssignedTo(ctx context.Context) ([]GetTotalsByAssignedToRow, error)
 	GetTotalsByCategory(ctx context.Context) ([]GetTotalsByCategoryRow, error)
 	GetTransactionByID(ctx context.Context, id pgtype.UUID) (GetTransactionByIDRow, error)
+	GetTransactionSplitsByTransactionID(ctx context.Context, transactionID pgtype.UUID) ([]TransactionSplit, error)
 	// Transactions queries
 	GetTransactions(ctx context.Context) ([]GetTransactionsRow, error)
 	GetTransactionsByAssignedTo(ctx context.Context, assignedTo []pgtype.UUID) ([]GetTransactionsByAssignedToRow, error)
@@ -54,17 +63,10 @@ type Querier interface {
 	RemovePersonFromTransaction(ctx context.Context, arg RemovePersonFromTransactionParams) (RemovePersonFromTransactionRow, error)
 	UnassignTransactionsByPerson(ctx context.Context, arrayRemove interface{}) error
 	UpdateArchiveTotals(ctx context.Context, arg UpdateArchiveTotalsParams) (Archive, error)
-	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
+	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (UpdateCategoryRow, error)
 	UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Person, error)
-	UpdateTransactionAssignment(ctx context.Context, arg UpdateTransactionAssignmentParams) (UpdateTransactionAssignmentRow, error)
-	UpdateTransactionCategory(ctx context.Context, arg UpdateTransactionCategoryParams) (UpdateTransactionCategoryRow, error)
-	// Categorization rules queries
-	GetRules(ctx context.Context) ([]GetRulesRow, error)
-	GetRuleByID(ctx context.Context, id pgtype.UUID) (GetRulesRow, error)
-	GetRulesForMatching(ctx context.Context) ([]GetRulesForMatchingRow, error)
-	CreateRule(ctx context.Context, arg CreateRuleParams) (CategorizationRule, error)
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (CategorizationRule, error)
-	DeleteRule(ctx context.Context, id pgtype.UUID) error
+	UpdateTransactionAssignment(ctx context.Context, arg UpdateTransactionAssignmentParams) (UpdateTransactionAssignmentRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
+	"math"
 	"math/big"
 	"net/http"
 	"strconv"
@@ -129,11 +130,24 @@ func uploadCSV(c *gin.Context) {
 			FileName:    pgtype.Text{String: fileName, Valid: true},
 		}
 
+		selectedCategory := (*generated.GetCategoriesRow)(nil)
+
 		// Map category if category mapping is available
 		if categoryMapping != nil {
 			if mappedCategory := categoryMapping.mapTransactionCategory(description, csvCategory); mappedCategory != nil {
-				params.CategoryID = pgtype.UUID{Bytes: mappedCategory.ID.Bytes, Valid: mappedCategory.ID.Valid}
+				selectedCategory = mappedCategory
 			}
+		}
+
+		if selectedCategory == nil && categoryMapping != nil {
+			if fallback, exists := categoryMapping.categoriesByName["Other"]; exists {
+				selectedCategory = &fallback
+			}
+		}
+
+		if selectedCategory == nil || !selectedCategory.ID.Valid {
+			skippedRows++
+			continue
 		}
 
 		// Add optional fields
@@ -187,9 +201,29 @@ func uploadCSV(c *gin.Context) {
 			continue
 		}
 
-		_, err = queries.CreateTransaction(context.Background(), params)
+		createdTransaction, err := queries.CreateTransaction(context.Background(), params)
 		if err != nil {
 			log.Printf("Error inserting transaction: %v", err)
+			skippedRows++
+			continue
+		}
+
+		splitAmount := math.Abs(amount)
+		var splitNumeric pgtype.Numeric
+		if err := splitNumeric.Scan(fmt.Sprintf("%.2f", splitAmount)); err != nil {
+			log.Printf("Error converting split amount to numeric: %v", err)
+			skippedRows++
+			continue
+		}
+
+		_, err = queries.CreateTransactionSplit(context.Background(), generated.CreateTransactionSplitParams{
+			TransactionID: createdTransaction.ID,
+			Amount:        splitNumeric,
+			CategoryID:    selectedCategory.ID,
+			Notes:         pgtype.Text{Valid: false},
+		})
+		if err != nil {
+			log.Printf("Error inserting transaction split: %v", err)
 			skippedRows++
 			continue
 		}
@@ -222,7 +256,16 @@ func getTransactions(c *gin.Context) {
 	// Convert to API transaction format
 	var transactions []Transaction
 	for _, t := range dbTransactions {
-		transactions = append(transactions, convertTransactionFromActiveRow(t))
+		transaction := convertTransactionFromActiveRow(t)
+
+		splits, err := loadTransactionSplits(t.ID)
+		if err != nil {
+			log.Printf("Error loading splits for transaction %s: %v", transaction.ID, err)
+		} else {
+			transaction.Splits = splits
+		}
+
+		transactions = append(transactions, transaction)
 	}
 
 	c.JSON(http.StatusOK, transactions)
@@ -339,65 +382,4 @@ func clearAllTransactions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "All transactions cleared successfully"})
-}
-
-// @Summary Update transaction category
-// @Description Update the category assignment for a specific transaction
-// @Tags transactions
-// @Accept json
-// @Produce json
-// @Param id path string true "Transaction ID"
-// @Param category body object{category_id=string} true "Category assignment data"
-// @Success 200 {object} Transaction "Updated transaction with new category"
-// @Failure 400 {object} map[string]interface{} "Bad request"
-// @Failure 404 {object} map[string]interface{} "Transaction not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
-// @Router /api/transactions/{id}/category [put]
-func updateTransactionCategory(c *gin.Context) {
-	id := c.Param("id")
-	var request struct {
-		CategoryID *string `json:"category_id"`
-	}
-
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	// Parse transaction UUID from string
-	transactionUUID, err := uuid.Parse(id)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid transaction ID"})
-		return
-	}
-
-	// Create parameters for the generated function
-	params := generated.UpdateTransactionCategoryParams{
-		ID: pgtype.UUID{Bytes: transactionUUID, Valid: true},
-	}
-
-	// Handle category ID
-	if request.CategoryID != nil && *request.CategoryID != "" {
-		categoryUUID, err := uuid.Parse(*request.CategoryID)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid category ID"})
-			return
-		}
-		params.CategoryID = pgtype.UUID{Bytes: categoryUUID, Valid: true}
-	} else {
-		// Set to NULL if no category provided
-		params.CategoryID = pgtype.UUID{Valid: false}
-	}
-
-	dbTransaction, err := queries.UpdateTransactionCategory(context.Background(), params)
-	if err != nil {
-		log.Printf("Error updating transaction category: %v", err)
-		statusCode, message := handleDatabaseError(err)
-		c.JSON(statusCode, gin.H{"error": message})
-		return
-	}
-
-	// Convert and return the updated transaction
-	transaction := convertTransactionFromUpdateCategoryRow(dbTransaction)
-	c.JSON(http.StatusOK, transaction)
 }

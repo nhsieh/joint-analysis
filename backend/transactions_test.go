@@ -44,6 +44,31 @@ func createTestTransaction(description string, amount float64, fileName string, 
 		return "", err
 	}
 
+	var otherCategoryID pgtype.UUID
+	err = testDB.QueryRow(context.Background(), "SELECT id FROM categories WHERE name = 'Other' LIMIT 1").Scan(&otherCategoryID)
+	if err != nil {
+		return "", err
+	}
+
+	splitAmount := amount
+	if splitAmount < 0 {
+		splitAmount = -splitAmount
+	}
+
+	var splitID pgtype.UUID
+	err = testDB.QueryRow(
+		context.Background(),
+		`INSERT INTO transaction_splits (transaction_id, amount, category_id)
+		 VALUES ($1, $2, $3)
+		 RETURNING id`,
+		id,
+		splitAmount,
+		otherCategoryID,
+	).Scan(&splitID)
+	if err != nil {
+		return "", err
+	}
+
 	return uuid.UUID(id.Bytes).String(), nil
 }
 
@@ -295,101 +320,87 @@ func TestAssignTransaction(t *testing.T) {
 	})
 }
 
-// TestUpdateTransactionCategory tests the PUT /api/transactions/:id/category endpoint
-func TestUpdateTransactionCategory(t *testing.T) {
-	// Clean data before test
+func TestTransactionSplits(t *testing.T) {
 	if err := cleanupTestData(); err != nil {
 		t.Fatalf("Failed to cleanup test data: %v", err)
 	}
 
-	t.Run("should update transaction category successfully", func(t *testing.T) {
-		// Create test category with unique name
-		categoryID, err := createTestCategory("Custom Food", "Restaurant and grocery expenses", "#FF5733")
+	t.Run("should return stored split rows", func(t *testing.T) {
+		transactionID, err := createTestTransaction("Split Default", 90.00, "test.csv", nil)
 		assertNoError(t, err)
 
-		// Create test transaction
-		transactionID, err := createTestTransaction("Restaurant Bill", 75.00, "test.csv", nil)
-		assertNoError(t, err)
-
-		// Update transaction category
-		requestBody := map[string]interface{}{
-			"category_id": categoryID,
-		}
-
-		body, err := json.Marshal(requestBody)
-		assertNoError(t, err)
-
-		resp := makeRequest("PUT", fmt.Sprintf("/api/transactions/%s/category", transactionID), bytes.NewBuffer(body))
-
+		resp := makeRequest("GET", fmt.Sprintf("/api/transactions/%s/splits", transactionID), nil)
 		assertStatusCode(t, http.StatusOK, resp.Code)
 
-		var transaction Transaction
-		assertNoError(t, parseJSONResponse(resp, &transaction))
+		var splits []TransactionSplit
+		assertNoError(t, parseJSONResponse(resp, &splits))
 
-		if transaction.CategoryID == nil || *transaction.CategoryID != categoryID {
-			t.Errorf("Expected category ID %s, got %v", categoryID, transaction.CategoryID)
+		if len(splits) != 1 {
+			t.Fatalf("Expected 1 split, got %d", len(splits))
+		}
+		if splits[0].CategoryID == "" {
+			t.Errorf("Expected non-empty category ID")
+		}
+		if splits[0].Amount != 90.00 {
+			t.Errorf("Expected amount 90.00, got %.2f", splits[0].Amount)
 		}
 	})
 
-	t.Run("should clear transaction category with null", func(t *testing.T) {
-		// Create test transaction
-		transactionID, err := createTestTransaction("Uncategorized Purchase", 30.00, "test.csv", nil)
+	t.Run("should replace splits successfully", func(t *testing.T) {
+		foodID, err := createTestCategory("Split Food", "", "#112233")
+		assertNoError(t, err)
+		reimbID, err := createTestCategory("Split Reimbursable", "", "#223344")
 		assertNoError(t, err)
 
-		// Clear category by setting to null
+		transactionID, err := createTestTransaction("Split Replace", 80.00, "test.csv", nil)
+		assertNoError(t, err)
+
 		requestBody := map[string]interface{}{
-			"category_id": nil,
+			"splits": []map[string]interface{}{
+				{"amount": 50.0, "category_id": foodID, "notes": "personal"},
+				{"amount": 30.0, "category_id": reimbID, "notes": "work"},
+			},
 		}
 
 		body, err := json.Marshal(requestBody)
 		assertNoError(t, err)
 
-		resp := makeRequest("PUT", fmt.Sprintf("/api/transactions/%s/category", transactionID), bytes.NewBuffer(body))
-
+		resp := makeRequest("PUT", fmt.Sprintf("/api/transactions/%s/splits", transactionID), bytes.NewBuffer(body))
 		assertStatusCode(t, http.StatusOK, resp.Code)
 
-		var transaction Transaction
-		assertNoError(t, parseJSONResponse(resp, &transaction))
+		var updated []TransactionSplit
+		assertNoError(t, parseJSONResponse(resp, &updated))
+		if len(updated) != 2 {
+			t.Fatalf("Expected 2 splits, got %d", len(updated))
+		}
 
-		if transaction.CategoryID != nil {
-			t.Errorf("Expected nil category ID, got %v", transaction.CategoryID)
+		getResp := makeRequest("GET", fmt.Sprintf("/api/transactions/%s/splits", transactionID), nil)
+		assertStatusCode(t, http.StatusOK, getResp.Code)
+
+		var fetched []TransactionSplit
+		assertNoError(t, parseJSONResponse(getResp, &fetched))
+		if len(fetched) != 2 {
+			t.Fatalf("Expected 2 stored splits, got %d", len(fetched))
 		}
 	})
 
-	t.Run("should fail with invalid transaction ID", func(t *testing.T) {
+	t.Run("should fail when split amounts do not match transaction amount", func(t *testing.T) {
+		categoryID, err := createTestCategory("Split Validation", "", "#334455")
+		assertNoError(t, err)
+
+		transactionID, err := createTestTransaction("Split Invalid", 100.00, "test.csv", nil)
+		assertNoError(t, err)
+
 		requestBody := map[string]interface{}{
-			"category_id": nil,
+			"splits": []map[string]interface{}{
+				{"amount": 60.0, "category_id": categoryID},
+			},
 		}
 
 		body, err := json.Marshal(requestBody)
 		assertNoError(t, err)
 
-		resp := makeRequest("PUT", "/api/transactions/invalid-uuid/category", bytes.NewBuffer(body))
-
-		assertStatusCode(t, http.StatusBadRequest, resp.Code)
-	})
-
-	t.Run("should fail with non-existent transaction ID", func(t *testing.T) {
-		fakeID := "550e8400-e29b-41d4-a716-446655440000"
-
-		requestBody := map[string]interface{}{
-			"category_id": nil,
-		}
-
-		body, err := json.Marshal(requestBody)
-		assertNoError(t, err)
-
-		resp := makeRequest("PUT", fmt.Sprintf("/api/transactions/%s/category", fakeID), bytes.NewBuffer(body))
-
-		assertStatusCode(t, http.StatusNotFound, resp.Code)
-	})
-
-	t.Run("should fail with invalid JSON", func(t *testing.T) {
-		transactionID, err := createTestTransaction("Test Transaction", 50.00, "test.csv", nil)
-		assertNoError(t, err)
-
-		resp := makeRequest("PUT", fmt.Sprintf("/api/transactions/%s/category", transactionID), bytes.NewBufferString("invalid json"))
-
+		resp := makeRequest("PUT", fmt.Sprintf("/api/transactions/%s/splits", transactionID), bytes.NewBuffer(body))
 		assertStatusCode(t, http.StatusBadRequest, resp.Code)
 	})
 }

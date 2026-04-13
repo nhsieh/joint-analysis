@@ -16,7 +16,7 @@ UPDATE transactions
 SET assigned_to = array_append(COALESCE(assigned_to, '{}'), $2), updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
+          transaction_date, posted_date, card_number,
           created_at, updated_at
 `
 
@@ -35,7 +35,6 @@ type AddPersonToTransactionRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -53,7 +52,6 @@ func (q *Queries) AddPersonToTransaction(ctx context.Context, arg AddPersonToTra
 		&i.TransactionDate,
 		&i.PostedDate,
 		&i.CardNumber,
-		&i.CategoryID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -139,9 +137,24 @@ type CreateCategoryParams struct {
 	ParentID    pgtype.UUID `json:"parent_id"`
 }
 
-func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error) {
-	row := q.db.QueryRow(ctx, createCategory, arg.Name, arg.Description, arg.Color, arg.ParentID)
-	var i Category
+type CreateCategoryRow struct {
+	ID          pgtype.UUID      `json:"id"`
+	Name        string           `json:"name"`
+	Description pgtype.Text      `json:"description"`
+	Color       pgtype.Text      `json:"color"`
+	ParentID    pgtype.UUID      `json:"parent_id"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) (CreateCategoryRow, error) {
+	row := q.db.QueryRow(ctx, createCategory,
+		arg.Name,
+		arg.Description,
+		arg.Color,
+		arg.ParentID,
+	)
+	var i CreateCategoryRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -178,11 +191,37 @@ func (q *Queries) CreatePerson(ctx context.Context, arg CreatePersonParams) (Per
 	return i, err
 }
 
+const createRule = `-- name: CreateRule :one
+INSERT INTO categorization_rules (match_value, category_id, priority)
+VALUES ($1, $2, $3)
+RETURNING id, match_value, category_id, priority, created_at, updated_at
+`
+
+type CreateRuleParams struct {
+	MatchValue string      `json:"match_value"`
+	CategoryID pgtype.UUID `json:"category_id"`
+	Priority   int32       `json:"priority"`
+}
+
+func (q *Queries) CreateRule(ctx context.Context, arg CreateRuleParams) (CategorizationRule, error) {
+	row := q.db.QueryRow(ctx, createRule, arg.MatchValue, arg.CategoryID, arg.Priority)
+	var i CategorizationRule
+	err := row.Scan(
+		&i.ID,
+		&i.MatchValue,
+		&i.CategoryID,
+		&i.Priority,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createTransaction = `-- name: CreateTransaction :one
-INSERT INTO transactions (description, amount, file_name, transaction_date, posted_date, card_number, category_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO transactions (description, amount, file_name, transaction_date, posted_date, card_number)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
+          transaction_date, posted_date, card_number,
           created_at, updated_at
 `
 
@@ -193,7 +232,6 @@ type CreateTransactionParams struct {
 	TransactionDate pgtype.Date    `json:"transaction_date"`
 	PostedDate      pgtype.Date    `json:"posted_date"`
 	CardNumber      pgtype.Text    `json:"card_number"`
-	CategoryID      pgtype.UUID    `json:"category_id"`
 }
 
 type CreateTransactionRow struct {
@@ -206,7 +244,6 @@ type CreateTransactionRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -219,7 +256,6 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		arg.TransactionDate,
 		arg.PostedDate,
 		arg.CardNumber,
-		arg.CategoryID,
 	)
 	var i CreateTransactionRow
 	err := row.Scan(
@@ -232,7 +268,39 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		&i.TransactionDate,
 		&i.PostedDate,
 		&i.CardNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createTransactionSplit = `-- name: CreateTransactionSplit :one
+INSERT INTO transaction_splits (transaction_id, amount, category_id, notes)
+VALUES ($1, $2, $3, $4)
+RETURNING id, transaction_id, amount, category_id, notes, created_at, updated_at
+`
+
+type CreateTransactionSplitParams struct {
+	TransactionID pgtype.UUID    `json:"transaction_id"`
+	Amount        pgtype.Numeric `json:"amount"`
+	CategoryID    pgtype.UUID    `json:"category_id"`
+	Notes         pgtype.Text    `json:"notes"`
+}
+
+func (q *Queries) CreateTransactionSplit(ctx context.Context, arg CreateTransactionSplitParams) (TransactionSplit, error) {
+	row := q.db.QueryRow(ctx, createTransactionSplit,
+		arg.TransactionID,
+		arg.Amount,
+		arg.CategoryID,
+		arg.Notes,
+	)
+	var i TransactionSplit
+	err := row.Scan(
+		&i.ID,
+		&i.TransactionID,
+		&i.Amount,
 		&i.CategoryID,
+		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -289,6 +357,16 @@ func (q *Queries) DeletePerson(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const deleteRule = `-- name: DeleteRule :exec
+DELETE FROM categorization_rules
+WHERE id = $1
+`
+
+func (q *Queries) DeleteRule(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteRule, id)
+	return err
+}
+
 const deleteTransaction = `-- name: DeleteTransaction :exec
 DELETE FROM transactions
 WHERE id = $1
@@ -296,6 +374,16 @@ WHERE id = $1
 
 func (q *Queries) DeleteTransaction(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteTransaction, id)
+	return err
+}
+
+const deleteTransactionSplitsByTransactionID = `-- name: DeleteTransactionSplitsByTransactionID :exec
+DELETE FROM transaction_splits
+WHERE transaction_id = $1
+`
+
+func (q *Queries) DeleteTransactionSplitsByTransactionID(ctx context.Context, transactionID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteTransactionSplitsByTransactionID, transactionID)
 	return err
 }
 
@@ -332,8 +420,17 @@ func (q *Queries) FindDuplicateTransaction(ctx context.Context, arg FindDuplicat
 }
 
 const getActiveTransactionGrandTotal = `-- name: GetActiveTransactionGrandTotal :one
-SELECT COALESCE(SUM(t.amount / array_length(t.assigned_to, 1)), 0)::numeric as grand_total
+WITH normalized_transaction_totals AS (
+    SELECT t.id,
+           SUM(CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END)::numeric AS normalized_amount
+    FROM transactions t
+    JOIN transaction_splits ts ON ts.transaction_id = t.id
+    WHERE t.archive_id IS NULL
+    GROUP BY t.id
+)
+SELECT COALESCE(SUM(nt.normalized_amount / array_length(t.assigned_to, 1)), 0)::numeric as grand_total
 FROM transactions t
+JOIN normalized_transaction_totals nt ON nt.id = t.id
 CROSS JOIN LATERAL unnest(t.assigned_to) AS person_id
 WHERE t.assigned_to IS NOT NULL
   AND array_length(t.assigned_to, 1) > 0
@@ -348,8 +445,17 @@ func (q *Queries) GetActiveTransactionGrandTotal(ctx context.Context) (pgtype.Nu
 }
 
 const getActiveTransactionTotals = `-- name: GetActiveTransactionTotals :many
-SELECT p.name as assigned_to, SUM(t.amount / array_length(t.assigned_to, 1))::numeric as total
+WITH normalized_transaction_totals AS (
+    SELECT t.id,
+           SUM(CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END)::numeric AS normalized_amount
+    FROM transactions t
+    JOIN transaction_splits ts ON ts.transaction_id = t.id
+    WHERE t.archive_id IS NULL
+    GROUP BY t.id
+)
+SELECT p.name as assigned_to, SUM(nt.normalized_amount / array_length(t.assigned_to, 1))::numeric as total
 FROM transactions t
+JOIN normalized_transaction_totals nt ON nt.id = t.id
 CROSS JOIN LATERAL unnest(t.assigned_to) AS person_id
 JOIN people p ON p.id = person_id
 WHERE t.assigned_to IS NOT NULL
@@ -386,7 +492,7 @@ func (q *Queries) GetActiveTransactionTotals(ctx context.Context) ([]GetActiveTr
 
 const getActiveTransactions = `-- name: GetActiveTransactions :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 WHERE archive_id IS NULL
@@ -403,7 +509,6 @@ type GetActiveTransactionsRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -427,7 +532,6 @@ func (q *Queries) GetActiveTransactions(ctx context.Context) ([]GetActiveTransac
 			&i.TransactionDate,
 			&i.PostedDate,
 			&i.CardNumber,
-			&i.CategoryID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -510,7 +614,7 @@ func (q *Queries) GetArchivePersonTotals(ctx context.Context, archiveID pgtype.U
 
 const getArchivedTransactions = `-- name: GetArchivedTransactions :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id, archive_id,
+  transaction_date, posted_date, card_number, archive_id,
        created_at, updated_at
 FROM transactions
 WHERE archive_id = $1
@@ -527,7 +631,6 @@ type GetArchivedTransactionsRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	ArchiveID       pgtype.UUID      `json:"archive_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
@@ -552,7 +655,6 @@ func (q *Queries) GetArchivedTransactions(ctx context.Context, archiveID pgtype.
 			&i.TransactionDate,
 			&i.PostedDate,
 			&i.CardNumber,
-			&i.CategoryID,
 			&i.ArchiveID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -607,16 +709,26 @@ FROM categories
 ORDER BY name
 `
 
+type GetCategoriesRow struct {
+	ID          pgtype.UUID      `json:"id"`
+	Name        string           `json:"name"`
+	Description pgtype.Text      `json:"description"`
+	Color       pgtype.Text      `json:"color"`
+	ParentID    pgtype.UUID      `json:"parent_id"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+}
+
 // Categories queries
-func (q *Queries) GetCategories(ctx context.Context) ([]Category, error) {
+func (q *Queries) GetCategories(ctx context.Context) ([]GetCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, getCategories)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Category
+	var items []GetCategoriesRow
 	for rows.Next() {
-		var i Category
+		var i GetCategoriesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -642,9 +754,19 @@ FROM categories
 WHERE id = $1
 `
 
-func (q *Queries) GetCategoryByID(ctx context.Context, id pgtype.UUID) (Category, error) {
+type GetCategoryByIDRow struct {
+	ID          pgtype.UUID      `json:"id"`
+	Name        string           `json:"name"`
+	Description pgtype.Text      `json:"description"`
+	Color       pgtype.Text      `json:"color"`
+	ParentID    pgtype.UUID      `json:"parent_id"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetCategoryByID(ctx context.Context, id pgtype.UUID) (GetCategoryByIDRow, error) {
 	row := q.db.QueryRow(ctx, getCategoryByID, id)
-	var i Category
+	var i GetCategoryByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -663,9 +785,19 @@ FROM categories
 WHERE name = $1
 `
 
-func (q *Queries) GetCategoryByName(ctx context.Context, name string) (Category, error) {
+type GetCategoryByNameRow struct {
+	ID          pgtype.UUID      `json:"id"`
+	Name        string           `json:"name"`
+	Description pgtype.Text      `json:"description"`
+	Color       pgtype.Text      `json:"color"`
+	ParentID    pgtype.UUID      `json:"parent_id"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetCategoryByName(ctx context.Context, name string) (GetCategoryByNameRow, error) {
 	row := q.db.QueryRow(ctx, getCategoryByName, name)
-	var i Category
+	var i GetCategoryByNameRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -676,76 +808,6 @@ func (q *Queries) GetCategoryByName(ctx context.Context, name string) (Category,
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const getTopLevelCategories = `-- name: GetTopLevelCategories :many
-SELECT id, name, description, color, parent_id, created_at, updated_at
-FROM categories
-WHERE parent_id IS NULL
-ORDER BY name
-`
-
-func (q *Queries) GetTopLevelCategories(ctx context.Context) ([]Category, error) {
-	rows, err := q.db.Query(ctx, getTopLevelCategories)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Category
-	for rows.Next() {
-		var i Category
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Description,
-			&i.Color,
-			&i.ParentID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getSubcategoriesByParent = `-- name: GetSubcategoriesByParent :many
-SELECT id, name, description, color, parent_id, created_at, updated_at
-FROM categories
-WHERE parent_id = $1
-ORDER BY name
-`
-
-func (q *Queries) GetSubcategoriesByParent(ctx context.Context, parentID pgtype.UUID) ([]Category, error) {
-	rows, err := q.db.Query(ctx, getSubcategoriesByParent, parentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Category
-	for rows.Next() {
-		var i Category
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Description,
-			&i.Color,
-			&i.ParentID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getPeople = `-- name: GetPeople :many
@@ -819,9 +881,217 @@ func (q *Queries) GetPersonByName(ctx context.Context, name string) (Person, err
 	return i, err
 }
 
+const getRuleByID = `-- name: GetRuleByID :one
+SELECT r.id, r.match_value, r.category_id, c.name as category_name, r.priority, r.created_at, r.updated_at
+FROM categorization_rules r
+JOIN categories c ON r.category_id = c.id
+WHERE r.id = $1
+`
+
+type GetRuleByIDRow struct {
+	ID           pgtype.UUID      `json:"id"`
+	MatchValue   string           `json:"match_value"`
+	CategoryID   pgtype.UUID      `json:"category_id"`
+	CategoryName string           `json:"category_name"`
+	Priority     int32            `json:"priority"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetRuleByID(ctx context.Context, id pgtype.UUID) (GetRuleByIDRow, error) {
+	row := q.db.QueryRow(ctx, getRuleByID, id)
+	var i GetRuleByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.MatchValue,
+		&i.CategoryID,
+		&i.CategoryName,
+		&i.Priority,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getRules = `-- name: GetRules :many
+SELECT r.id, r.match_value, r.category_id, c.name as category_name, r.priority, r.created_at, r.updated_at
+FROM categorization_rules r
+JOIN categories c ON r.category_id = c.id
+ORDER BY r.priority ASC, r.created_at ASC
+`
+
+type GetRulesRow struct {
+	ID           pgtype.UUID      `json:"id"`
+	MatchValue   string           `json:"match_value"`
+	CategoryID   pgtype.UUID      `json:"category_id"`
+	CategoryName string           `json:"category_name"`
+	Priority     int32            `json:"priority"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+// Categorization rules queries
+func (q *Queries) GetRules(ctx context.Context) ([]GetRulesRow, error) {
+	rows, err := q.db.Query(ctx, getRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRulesRow
+	for rows.Next() {
+		var i GetRulesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.MatchValue,
+			&i.CategoryID,
+			&i.CategoryName,
+			&i.Priority,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRulesForMatching = `-- name: GetRulesForMatching :many
+SELECT id, match_value, category_id
+FROM categorization_rules
+ORDER BY priority ASC, created_at ASC
+`
+
+type GetRulesForMatchingRow struct {
+	ID         pgtype.UUID `json:"id"`
+	MatchValue string      `json:"match_value"`
+	CategoryID pgtype.UUID `json:"category_id"`
+}
+
+func (q *Queries) GetRulesForMatching(ctx context.Context) ([]GetRulesForMatchingRow, error) {
+	rows, err := q.db.Query(ctx, getRulesForMatching)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRulesForMatchingRow
+	for rows.Next() {
+		var i GetRulesForMatchingRow
+		if err := rows.Scan(&i.ID, &i.MatchValue, &i.CategoryID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getSubcategoriesByParent = `-- name: GetSubcategoriesByParent :many
+SELECT id, name, description, color, parent_id, created_at, updated_at
+FROM categories
+WHERE parent_id = $1
+ORDER BY name
+`
+
+type GetSubcategoriesByParentRow struct {
+	ID          pgtype.UUID      `json:"id"`
+	Name        string           `json:"name"`
+	Description pgtype.Text      `json:"description"`
+	Color       pgtype.Text      `json:"color"`
+	ParentID    pgtype.UUID      `json:"parent_id"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetSubcategoriesByParent(ctx context.Context, parentID pgtype.UUID) ([]GetSubcategoriesByParentRow, error) {
+	rows, err := q.db.Query(ctx, getSubcategoriesByParent, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetSubcategoriesByParentRow
+	for rows.Next() {
+		var i GetSubcategoriesByParentRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Color,
+			&i.ParentID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTopLevelCategories = `-- name: GetTopLevelCategories :many
+SELECT id, name, description, color, parent_id, created_at, updated_at
+FROM categories
+WHERE parent_id IS NULL
+ORDER BY name
+`
+
+type GetTopLevelCategoriesRow struct {
+	ID          pgtype.UUID      `json:"id"`
+	Name        string           `json:"name"`
+	Description pgtype.Text      `json:"description"`
+	Color       pgtype.Text      `json:"color"`
+	ParentID    pgtype.UUID      `json:"parent_id"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetTopLevelCategories(ctx context.Context) ([]GetTopLevelCategoriesRow, error) {
+	rows, err := q.db.Query(ctx, getTopLevelCategories)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTopLevelCategoriesRow
+	for rows.Next() {
+		var i GetTopLevelCategoriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Color,
+			&i.ParentID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTotalsByAssignedTo = `-- name: GetTotalsByAssignedTo :many
-SELECT p.name as assigned_to, SUM(t.amount / array_length(t.assigned_to, 1))::numeric as total
+WITH normalized_transaction_totals AS (
+    SELECT t.id,
+           SUM(CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END)::numeric AS normalized_amount
+    FROM transactions t
+    JOIN transaction_splits ts ON ts.transaction_id = t.id
+    GROUP BY t.id
+)
+SELECT p.name as assigned_to, SUM(nt.normalized_amount / array_length(t.assigned_to, 1))::numeric as total
 FROM transactions t
+JOIN normalized_transaction_totals nt ON nt.id = t.id
 CROSS JOIN LATERAL unnest(t.assigned_to) AS person_id
 JOIN people p ON p.id = person_id
 WHERE t.assigned_to IS NOT NULL AND array_length(t.assigned_to, 1) > 0
@@ -855,10 +1125,15 @@ func (q *Queries) GetTotalsByAssignedTo(ctx context.Context) ([]GetTotalsByAssig
 }
 
 const getTotalsByCategory = `-- name: GetTotalsByCategory :many
-SELECT c.name as category_name, SUM(t.amount)::numeric as total
-FROM transactions t
-JOIN categories c ON t.category_id = c.id
-WHERE t.category_id IS NOT NULL
+WITH normalized_category_amounts AS (
+    SELECT ts.category_id,
+           CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END AS signed_amount
+    FROM transactions t
+    JOIN transaction_splits ts ON ts.transaction_id = t.id
+)
+SELECT c.name as category_name, SUM(nca.signed_amount)::numeric as total
+FROM normalized_category_amounts nca
+JOIN categories c ON nca.category_id = c.id
 GROUP BY c.id, c.name
 ORDER BY c.name
 `
@@ -890,7 +1165,7 @@ func (q *Queries) GetTotalsByCategory(ctx context.Context) ([]GetTotalsByCategor
 
 const getTransactionByID = `-- name: GetTransactionByID :one
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 WHERE id = $1
@@ -906,7 +1181,6 @@ type GetTransactionByIDRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -924,16 +1198,50 @@ func (q *Queries) GetTransactionByID(ctx context.Context, id pgtype.UUID) (GetTr
 		&i.TransactionDate,
 		&i.PostedDate,
 		&i.CardNumber,
-		&i.CategoryID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
+const getTransactionSplitsByTransactionID = `-- name: GetTransactionSplitsByTransactionID :many
+SELECT id, transaction_id, amount, category_id, notes, created_at, updated_at
+FROM transaction_splits
+WHERE transaction_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *Queries) GetTransactionSplitsByTransactionID(ctx context.Context, transactionID pgtype.UUID) ([]TransactionSplit, error) {
+	rows, err := q.db.Query(ctx, getTransactionSplitsByTransactionID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TransactionSplit
+	for rows.Next() {
+		var i TransactionSplit
+		if err := rows.Scan(
+			&i.ID,
+			&i.TransactionID,
+			&i.Amount,
+			&i.CategoryID,
+			&i.Notes,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTransactions = `-- name: GetTransactions :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 ORDER BY date_uploaded DESC
@@ -949,7 +1257,6 @@ type GetTransactionsRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -974,7 +1281,6 @@ func (q *Queries) GetTransactions(ctx context.Context) ([]GetTransactionsRow, er
 			&i.TransactionDate,
 			&i.PostedDate,
 			&i.CardNumber,
-			&i.CategoryID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -990,7 +1296,7 @@ func (q *Queries) GetTransactions(ctx context.Context) ([]GetTransactionsRow, er
 
 const getTransactionsByAssignedTo = `-- name: GetTransactionsByAssignedTo :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 WHERE $1 = ANY(assigned_to)
@@ -1007,7 +1313,6 @@ type GetTransactionsByAssignedToRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -1031,7 +1336,6 @@ func (q *Queries) GetTransactionsByAssignedTo(ctx context.Context, assignedTo []
 			&i.TransactionDate,
 			&i.PostedDate,
 			&i.CardNumber,
-			&i.CategoryID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1047,7 +1351,7 @@ func (q *Queries) GetTransactionsByAssignedTo(ctx context.Context, assignedTo []
 
 const getTransactionsByFileName = `-- name: GetTransactionsByFileName :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 WHERE file_name = $1
@@ -1064,7 +1368,6 @@ type GetTransactionsByFileNameRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -1088,7 +1391,6 @@ func (q *Queries) GetTransactionsByFileName(ctx context.Context, fileName pgtype
 			&i.TransactionDate,
 			&i.PostedDate,
 			&i.CardNumber,
-			&i.CategoryID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1107,7 +1409,7 @@ UPDATE transactions
 SET assigned_to = array_remove(assigned_to, $2), updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
+          transaction_date, posted_date, card_number,
           created_at, updated_at
 `
 
@@ -1126,7 +1428,6 @@ type RemovePersonFromTransactionRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -1144,7 +1445,6 @@ func (q *Queries) RemovePersonFromTransaction(ctx context.Context, arg RemovePer
 		&i.TransactionDate,
 		&i.PostedDate,
 		&i.CardNumber,
-		&i.CategoryID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -1204,14 +1504,24 @@ type UpdateCategoryParams struct {
 	Color       pgtype.Text `json:"color"`
 }
 
-func (q *Queries) UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error) {
+type UpdateCategoryRow struct {
+	ID          pgtype.UUID      `json:"id"`
+	Name        string           `json:"name"`
+	Description pgtype.Text      `json:"description"`
+	Color       pgtype.Text      `json:"color"`
+	ParentID    pgtype.UUID      `json:"parent_id"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (UpdateCategoryRow, error) {
 	row := q.db.QueryRow(ctx, updateCategory,
 		arg.ID,
 		arg.Name,
 		arg.Description,
 		arg.Color,
 	)
-	var i Category
+	var i UpdateCategoryRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -1250,12 +1560,45 @@ func (q *Queries) UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Per
 	return i, err
 }
 
+const updateRule = `-- name: UpdateRule :one
+UPDATE categorization_rules
+SET match_value = $2, category_id = $3, priority = $4, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, match_value, category_id, priority, created_at, updated_at
+`
+
+type UpdateRuleParams struct {
+	ID         pgtype.UUID `json:"id"`
+	MatchValue string      `json:"match_value"`
+	CategoryID pgtype.UUID `json:"category_id"`
+	Priority   int32       `json:"priority"`
+}
+
+func (q *Queries) UpdateRule(ctx context.Context, arg UpdateRuleParams) (CategorizationRule, error) {
+	row := q.db.QueryRow(ctx, updateRule,
+		arg.ID,
+		arg.MatchValue,
+		arg.CategoryID,
+		arg.Priority,
+	)
+	var i CategorizationRule
+	err := row.Scan(
+		&i.ID,
+		&i.MatchValue,
+		&i.CategoryID,
+		&i.Priority,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateTransactionAssignment = `-- name: UpdateTransactionAssignment :one
 UPDATE transactions
 SET assigned_to = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
+          transaction_date, posted_date, card_number,
           created_at, updated_at
 `
 
@@ -1274,7 +1617,6 @@ type UpdateTransactionAssignmentRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -1292,226 +1634,8 @@ func (q *Queries) UpdateTransactionAssignment(ctx context.Context, arg UpdateTra
 		&i.TransactionDate,
 		&i.PostedDate,
 		&i.CardNumber,
-		&i.CategoryID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const updateTransactionCategory = `-- name: UpdateTransactionCategory :one
-UPDATE transactions
-SET category_id = $2, updated_at = CURRENT_TIMESTAMP
-WHERE id = $1
-RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
-          created_at, updated_at
-`
-
-type UpdateTransactionCategoryParams struct {
-	ID         pgtype.UUID `json:"id"`
-	CategoryID pgtype.UUID `json:"category_id"`
-}
-
-type UpdateTransactionCategoryRow struct {
-	ID              pgtype.UUID      `json:"id"`
-	Description     string           `json:"description"`
-	Amount          pgtype.Numeric   `json:"amount"`
-	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
-	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
-	FileName        pgtype.Text      `json:"file_name"`
-	TransactionDate pgtype.Date      `json:"transaction_date"`
-	PostedDate      pgtype.Date      `json:"posted_date"`
-	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
-	CreatedAt       pgtype.Timestamp `json:"created_at"`
-	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
-}
-
-func (q *Queries) UpdateTransactionCategory(ctx context.Context, arg UpdateTransactionCategoryParams) (UpdateTransactionCategoryRow, error) {
-	row := q.db.QueryRow(ctx, updateTransactionCategory, arg.ID, arg.CategoryID)
-	var i UpdateTransactionCategoryRow
-	err := row.Scan(
-		&i.ID,
-		&i.Description,
-		&i.Amount,
-		&i.AssignedTo,
-		&i.DateUploaded,
-		&i.FileName,
-		&i.TransactionDate,
-		&i.PostedDate,
-		&i.CardNumber,
-		&i.CategoryID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getRules = `-- name: GetRules :many
-SELECT r.id, r.match_value, r.category_id, c.name as category_name, r.priority, r.created_at, r.updated_at
-FROM categorization_rules r
-JOIN categories c ON r.category_id = c.id
-ORDER BY r.priority ASC, r.created_at ASC
-`
-
-type GetRulesRow struct {
-	ID           pgtype.UUID      `json:"id"`
-	MatchValue   string           `json:"match_value"`
-	CategoryID   pgtype.UUID      `json:"category_id"`
-	CategoryName string           `json:"category_name"`
-	Priority     int32            `json:"priority"`
-	CreatedAt    pgtype.Timestamp `json:"created_at"`
-	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
-}
-
-// Categorization rules queries
-func (q *Queries) GetRules(ctx context.Context) ([]GetRulesRow, error) {
-	rows, err := q.db.Query(ctx, getRules)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetRulesRow
-	for rows.Next() {
-		var i GetRulesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.MatchValue,
-			&i.CategoryID,
-			&i.CategoryName,
-			&i.Priority,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getRuleByID = `-- name: GetRuleByID :one
-SELECT r.id, r.match_value, r.category_id, c.name as category_name, r.priority, r.created_at, r.updated_at
-FROM categorization_rules r
-JOIN categories c ON r.category_id = c.id
-WHERE r.id = $1
-`
-
-func (q *Queries) GetRuleByID(ctx context.Context, id pgtype.UUID) (GetRulesRow, error) {
-	row := q.db.QueryRow(ctx, getRuleByID, id)
-	var i GetRulesRow
-	err := row.Scan(
-		&i.ID,
-		&i.MatchValue,
-		&i.CategoryID,
-		&i.CategoryName,
-		&i.Priority,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getRulesForMatching = `-- name: GetRulesForMatching :many
-SELECT id, match_value, category_id
-FROM categorization_rules
-ORDER BY priority ASC, created_at ASC
-`
-
-type GetRulesForMatchingRow struct {
-	ID         pgtype.UUID `json:"id"`
-	MatchValue string      `json:"match_value"`
-	CategoryID pgtype.UUID `json:"category_id"`
-}
-
-func (q *Queries) GetRulesForMatching(ctx context.Context) ([]GetRulesForMatchingRow, error) {
-	rows, err := q.db.Query(ctx, getRulesForMatching)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetRulesForMatchingRow
-	for rows.Next() {
-		var i GetRulesForMatchingRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.MatchValue,
-			&i.CategoryID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const createRule = `-- name: CreateRule :one
-INSERT INTO categorization_rules (match_value, category_id, priority)
-VALUES ($1, $2, $3)
-RETURNING id, match_value, category_id, priority, created_at, updated_at
-`
-
-type CreateRuleParams struct {
-	MatchValue string      `json:"match_value"`
-	CategoryID pgtype.UUID `json:"category_id"`
-	Priority   int32       `json:"priority"`
-}
-
-func (q *Queries) CreateRule(ctx context.Context, arg CreateRuleParams) (CategorizationRule, error) {
-	row := q.db.QueryRow(ctx, createRule, arg.MatchValue, arg.CategoryID, arg.Priority)
-	var i CategorizationRule
-	err := row.Scan(
-		&i.ID,
-		&i.MatchValue,
-		&i.CategoryID,
-		&i.Priority,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const updateRule = `-- name: UpdateRule :one
-UPDATE categorization_rules
-SET match_value = $2, category_id = $3, priority = $4, updated_at = CURRENT_TIMESTAMP
-WHERE id = $1
-RETURNING id, match_value, category_id, priority, created_at, updated_at
-`
-
-type UpdateRuleParams struct {
-	ID         pgtype.UUID `json:"id"`
-	MatchValue string      `json:"match_value"`
-	CategoryID pgtype.UUID `json:"category_id"`
-	Priority   int32       `json:"priority"`
-}
-
-func (q *Queries) UpdateRule(ctx context.Context, arg UpdateRuleParams) (CategorizationRule, error) {
-	row := q.db.QueryRow(ctx, updateRule, arg.ID, arg.MatchValue, arg.CategoryID, arg.Priority)
-	var i CategorizationRule
-	err := row.Scan(
-		&i.ID,
-		&i.MatchValue,
-		&i.CategoryID,
-		&i.Priority,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const deleteRule = `-- name: DeleteRule :exec
-DELETE FROM categorization_rules
-WHERE id = $1
-`
-
-func (q *Queries) DeleteRule(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteRule, id)
-	return err
 }
