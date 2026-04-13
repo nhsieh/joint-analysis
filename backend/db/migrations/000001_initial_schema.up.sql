@@ -70,7 +70,7 @@ INSERT INTO categories (name, description, color) VALUES
     ('Home Improvement', 'Home renovation, tools, repairs, maintenance', '#9B0909'),
     ('Other', 'Miscellaneous', '#78909C'),
     ('Pets', 'Pet care, grooming, supplies, insurance', '#13AFAD'),
-    ('Reimbursable', 'Business trips', '#156873'),
+    ('Reimbursable', 'Business trips, People owe', '#156873'),
     ('Shopping', 'Retail purchases, online shopping', '#AB47BC'),
     ('Transportation', 'Gas, public transit, rideshare, parking', '#42A5F5'),
     ('Travel', 'Flights, hotels, vacation expenses', '#26C6DA'),

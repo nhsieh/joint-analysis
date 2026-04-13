@@ -8,7 +8,6 @@ import {
   Upload,
   Input,
   Select,
-  Space,
   Row,
   Col,
   Statistic,
@@ -16,12 +15,14 @@ import {
   Spin,
   Checkbox,
   Modal,
+  InputNumber,
 } from 'antd';
 import {
   UploadOutlined,
   DollarCircleOutlined,
   FileTextOutlined,
   DeleteOutlined,
+  SwapOutlined,
   ClearOutlined,
   PieChartOutlined,
   InboxOutlined,
@@ -29,7 +30,7 @@ import {
 import { Pie } from '@ant-design/charts';
 import { UploadProps, RcFile } from 'antd/es/upload';
 import { ColumnsType } from 'antd/es/table';
-import { Transaction, Person, Category, PersonTotal } from './types';
+import { Transaction, Person, Category, PersonTotal, TransactionSplit } from './types';
 import { getCategoryColor, generateColorVariants } from './utils';
 
 const { Text } = Typography;
@@ -47,6 +48,10 @@ const Dashboard: React.FC = () => {
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [assignedFilter, setAssignedFilter] = useState<string>('all');
+  const [splitModalOpen, setSplitModalOpen] = useState(false);
+  const [splitSaving, setSplitSaving] = useState(false);
+  const [splitRows, setSplitRows] = useState<TransactionSplit[]>([]);
+  const [splitTransaction, setSplitTransaction] = useState<Transaction | null>(null);
   // drillDownState maps personName → top-level category ID being drilled into (null = top-level view)
   const [drillDownState, setDrillDownState] = useState<Record<string, string | null>>({});
 
@@ -120,32 +125,48 @@ const Dashboard: React.FC = () => {
     const categoryTotals: { [key: string]: number } = {};
 
     personTransactions.forEach(transaction => {
-      const txCategory = flatCategories.find(c => c.id === transaction.category_id);
       const assignedCount = transaction.assigned_to ? transaction.assigned_to.length : 1;
-      const splitAmount = transaction.amount / assignedCount;
+      const txSign = transaction.amount < 0 ? -1 : 1;
 
-      if (drillDownCategoryId) {
-        // Drill-down: only include transactions in this top-level category or its subcategories
-        if (txCategory) {
-          const isTopLevel = txCategory.id === drillDownCategoryId;
-          const isSubOfTarget = txCategory.parent_id === drillDownCategoryId;
-          if (isTopLevel || isSubOfTarget) {
-            const label = txCategory.name;
-            categoryTotals[label] = (categoryTotals[label] || 0) + splitAmount;
+      const categoryAllocations = (transaction.splits && transaction.splits.length > 0)
+        ? transaction.splits.map(split => ({
+            categoryId: split.category_id,
+            amount: txSign * Number(split.amount || 0),
+          }))
+        : [{
+            categoryId: transaction.category_id || null,
+            amount: Number(transaction.amount || 0),
+          }];
+
+      categoryAllocations.forEach(allocation => {
+        const txCategory = allocation.categoryId
+          ? flatCategories.find(c => c.id === allocation.categoryId)
+          : undefined;
+        const amountPerPerson = allocation.amount / assignedCount;
+
+        if (drillDownCategoryId) {
+          // Drill-down: only include allocations in this top-level category or its subcategories
+          if (txCategory) {
+            const isTopLevel = txCategory.id === drillDownCategoryId;
+            const isSubOfTarget = txCategory.parent_id === drillDownCategoryId;
+            if (isTopLevel || isSubOfTarget) {
+              const label = txCategory.name;
+              categoryTotals[label] = (categoryTotals[label] || 0) + amountPerPerson;
+            }
+          }
+        } else {
+          // Top-level view: roll subcategory amounts up to their parent
+          if (!txCategory) {
+            categoryTotals['Uncategorized'] = (categoryTotals['Uncategorized'] || 0) + amountPerPerson;
+          } else if (txCategory.parent_id) {
+            const parent = flatCategories.find(c => c.id === txCategory.parent_id);
+            const parentName = parent ? parent.name : txCategory.name;
+            categoryTotals[parentName] = (categoryTotals[parentName] || 0) + amountPerPerson;
+          } else {
+            categoryTotals[txCategory.name] = (categoryTotals[txCategory.name] || 0) + amountPerPerson;
           }
         }
-      } else {
-        // Top-level view: roll subcategory amounts up to their parent
-        if (!txCategory) {
-          categoryTotals['Uncategorized'] = (categoryTotals['Uncategorized'] || 0) + splitAmount;
-        } else if (txCategory.parent_id) {
-          const parent = flatCategories.find(c => c.id === txCategory.parent_id);
-          const parentName = parent ? parent.name : txCategory.name;
-          categoryTotals[parentName] = (categoryTotals[parentName] || 0) + splitAmount;
-        } else {
-          categoryTotals[txCategory.name] = (categoryTotals[txCategory.name] || 0) + splitAmount;
-        }
-      }
+      });
     });
 
     const sorted = Object.entries(categoryTotals)
@@ -301,6 +322,95 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const openSplitModal = async (transaction: Transaction) => {
+    try {
+      const response = await axios.get(`${API_URL}/api/transactions/${transaction.id}/splits`);
+      const rows: TransactionSplit[] = (response.data || []).map((row: any) => ({
+        id: row.id,
+        transaction_id: row.transaction_id,
+        amount: Number(row.amount || 0),
+        category_id: row.category_id || '',
+        notes: row.notes || '',
+      }));
+
+      setSplitTransaction(transaction);
+      setSplitRows(rows);
+      setSplitModalOpen(true);
+    } catch (error) {
+      console.error('Error loading transaction splits:', error);
+      message.error('Error loading transaction splits');
+    }
+  };
+
+  const addSplitRow = () => {
+    const fallbackCategory = flatCategories[0]?.id || '';
+    setSplitRows(prev => {
+      const expectedTotal = Math.abs(splitTransaction?.amount || 0);
+      const currentTotal = prev.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      const remaining = Math.max(0, Number((expectedTotal - currentTotal).toFixed(2)));
+
+      return [...prev, { amount: remaining, category_id: fallbackCategory, notes: '' }];
+    });
+  };
+
+  const updateSplitRow = (index: number, patch: Partial<TransactionSplit>) => {
+    setSplitRows(prev => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  };
+
+  const removeSplitRow = (index: number) => {
+    setSplitRows(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const getSplitValidationError = (): string | null => {
+    if (!splitTransaction) return 'No transaction selected';
+    if (splitRows.length === 0) return 'At least one split row is required';
+
+    for (const row of splitRows) {
+      if (!row.category_id) return 'Each split row must have a category';
+      if (!row.amount || row.amount <= 0) return 'Each split amount must be greater than zero';
+    }
+
+    const splitTotal = splitRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const expected = Math.abs(splitTransaction.amount || 0);
+    if (Math.abs(splitTotal - expected) > 0.01) {
+      return `Split total must equal $${expected.toFixed(2)}`;
+    }
+
+    return null;
+  };
+
+  const saveSplits = async () => {
+    if (!splitTransaction) return;
+
+    const validationError = getSplitValidationError();
+    if (validationError) {
+      message.error(validationError);
+      return;
+    }
+
+    try {
+      setSplitSaving(true);
+      await axios.put(`${API_URL}/api/transactions/${splitTransaction.id}/splits`, {
+        splits: splitRows.map(row => ({
+          amount: Number(Number(row.amount || 0).toFixed(2)),
+          category_id: row.category_id,
+          notes: row.notes || undefined,
+        })),
+      });
+
+      message.success('Transaction splits updated');
+      setSplitModalOpen(false);
+      setSplitTransaction(null);
+      setSplitRows([]);
+      await fetchTransactions();
+    } catch (error) {
+      console.error('Error saving transaction splits:', error);
+      message.error('Error saving transaction splits');
+    } finally {
+      setSplitSaving(false);
+    }
+  };
+
   const uploadProps: UploadProps = {
     name: 'file',
     accept: '.csv',
@@ -315,6 +425,30 @@ const Dashboard: React.FC = () => {
     : transactions.filter(transaction =>
         (transaction.assigned_to || []).includes(assignedFilter)
       );
+
+  const getCategoryNameByID = (categoryID: string): string => {
+    const category = flatCategories.find(c => c.id === categoryID);
+    if (!category) return 'Unknown Category';
+
+    if (category.parent_id) {
+      const parent = flatCategories.find(c => c.id === category.parent_id);
+      return parent ? `${parent.name} / ${category.name}` : category.name;
+    }
+
+    return category.name;
+  };
+
+  const getCategoryColorByID = (categoryID: string): string | undefined => {
+    const category = flatCategories.find(c => c.id === categoryID);
+    if (!category) return undefined;
+
+    if (category.parent_id) {
+      const parent = flatCategories.find(c => c.id === category.parent_id);
+      return parent?.color || category.color;
+    }
+
+    return category.color;
+  };
 
   const columns: ColumnsType<Transaction> = [
     {
@@ -370,40 +504,78 @@ const Dashboard: React.FC = () => {
       title: 'Category',
       dataIndex: 'category_id',
       key: 'category_id',
-      render: (categoryId: string, record: Transaction) => (
-        <Select
-          style={{ width: '100%' }}
-          placeholder="Select category"
-          value={categoryId || undefined}
-          onChange={(value) => updateTransactionCategory(record.id, value || null)}
-          allowClear
-          showSearch
-          optionFilterProp="label"
-        >
-          {categories.map((category) => {
-            const subs = category.subcategories || [];
-            if (subs.length > 0) {
-              return [
-                <Option key={category.id} value={category.id} label={category.name}>
-                  <span style={{ color: category.color, fontWeight: 600 }}>{category.name}</span>
-                </Option>,
-                ...subs.map((sub) => (
-                  <Option key={sub.id} value={sub.id} label={`${category.name} / ${sub.name}`}>
-                    <span style={{ color: category.color, paddingLeft: 8 }}>↳ {sub.name}</span>
+      render: (categoryId: string, record: Transaction) => {
+        const isSplitTransaction = (record.splits || []).length > 1;
+
+        if (isSplitTransaction) {
+          return (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%' }}>
+              <div style={{ fontSize: 11, color: '#666', flex: 1, minWidth: 0 }}>
+                {(record.splits || []).map((split, idx) => (
+                  <div key={`${record.id}-split-${idx}`}>
+                    <span style={{ color: getCategoryColorByID(split.category_id) || '#666' }}>
+                      {getCategoryNameByID(split.category_id)}
+                    </span>
+                    : ${Number(split.amount || 0).toFixed(2)}
+                  </div>
+                ))}
+              </div>
+              <Button
+                type="text"
+                size="small"
+                icon={<SwapOutlined />}
+                onClick={() => openSplitModal(record)}
+                title="Edit splits"
+              />
+            </div>
+          );
+        }
+
+        return (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%' }}>
+            <Select
+              style={{ flex: 1, minWidth: 0, fontSize: 12 }}
+              dropdownStyle={{ fontSize: 12 }}
+              placeholder="Select category"
+              value={categoryId || undefined}
+              onChange={(value) => updateTransactionCategory(record.id, value || null)}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+            >
+              {categories.map((category) => {
+                const subs = category.subcategories || [];
+                if (subs.length > 0) {
+                  return [
+                    <Option key={category.id} value={category.id} label={category.name}>
+                      <span style={{ color: category.color, fontWeight: 600, fontSize: 12 }}>{category.name}</span>
+                    </Option>,
+                    ...subs.map((sub) => (
+                      <Option key={sub.id} value={sub.id} label={`${category.name} / ${sub.name}`}>
+                        <span style={{ color: category.color, paddingLeft: 8, fontSize: 12 }}>↳ {sub.name}</span>
+                      </Option>
+                    )),
+                  ];
+                }
+                return (
+                  <Option key={category.id} value={category.id} label={category.name}>
+                    <span style={{ color: category.color, fontSize: 12 }}>
+                      {category.name}
+                    </span>
                   </Option>
-                )),
-              ];
-            }
-            return (
-              <Option key={category.id} value={category.id} label={category.name}>
-                <span style={{ color: category.color }}>
-                  {category.name}
-                </span>
-              </Option>
-            );
-          })}
-        </Select>
-      ),
+                );
+              })}
+            </Select>
+            <Button
+              type="text"
+              size="small"
+              icon={<SwapOutlined />}
+              onClick={() => openSplitModal(record)}
+              title="Edit splits"
+            />
+          </div>
+        );
+      },
       width: 180,
     },
     {
@@ -818,6 +990,101 @@ const Dashboard: React.FC = () => {
             />
           </Spin>
         </Card>
+
+        <Modal
+          title={splitTransaction ? `Split: ${splitTransaction.description}` : 'Split Transaction'}
+          open={splitModalOpen}
+          onCancel={() => {
+            setSplitModalOpen(false);
+            setSplitTransaction(null);
+            setSplitRows([]);
+          }}
+          onOk={saveSplits}
+          okText="Save Splits"
+          confirmLoading={splitSaving}
+          width={900}
+        >
+          <div style={{ marginBottom: 12, color: '#666' }}>
+            Transaction total: <strong>${Math.abs(splitTransaction?.amount || 0).toFixed(2)}</strong>
+          </div>
+
+          {splitRows.map((row, index) => (
+            <Row key={index} gutter={8} style={{ marginBottom: 8 }} align="middle">
+              <Col span={9}>
+                <Select
+                  value={row.category_id || undefined}
+                  placeholder="Category"
+                  style={{ width: '100%' }}
+                  onChange={(value) => updateSplitRow(index, { category_id: value })}
+                  showSearch
+                  optionFilterProp="label"
+                >
+                  {categories.map((category) => {
+                    const subs = category.subcategories || [];
+                    if (subs.length > 0) {
+                      return [
+                        <Option key={category.id} value={category.id} label={category.name}>
+                          <span style={{ color: category.color, fontWeight: 600 }}>{category.name}</span>
+                        </Option>,
+                        ...subs.map((sub) => (
+                          <Option key={sub.id} value={sub.id} label={`${category.name} / ${sub.name}`}>
+                            <span style={{ color: category.color, paddingLeft: 8 }}>↳ {sub.name}</span>
+                          </Option>
+                        )),
+                      ];
+                    }
+                    return (
+                      <Option key={category.id} value={category.id} label={category.name}>
+                        <span style={{ color: category.color }}>{category.name}</span>
+                      </Option>
+                    );
+                  })}
+                </Select>
+              </Col>
+
+              <Col span={5}>
+                <InputNumber
+                  min={0}
+                  step={0.01}
+                  precision={2}
+                  style={{ width: '100%' }}
+                  value={row.amount}
+                  onChange={(value) => updateSplitRow(index, { amount: Number(value || 0) })}
+                />
+              </Col>
+
+              <Col span={8}>
+                <Input
+                  placeholder="Notes (optional)"
+                  value={row.notes || ''}
+                  onChange={(e) => updateSplitRow(index, { notes: e.target.value })}
+                />
+              </Col>
+
+              <Col span={2}>
+                <Button
+                  danger
+                  onClick={() => removeSplitRow(index)}
+                  disabled={splitRows.length <= 1}
+                >
+                  X
+                </Button>
+              </Col>
+            </Row>
+          ))}
+
+          <Row>
+            <Col>
+              <Button onClick={addSplitRow}>+ Add Split Row</Button>
+            </Col>
+          </Row>
+
+          <div style={{ marginTop: 12, color: getSplitValidationError() ? '#cf1322' : '#389e0d' }}>
+            {getSplitValidationError()
+              ? getSplitValidationError()
+              : `Split total: $${splitRows.reduce((sum, row) => sum + Number(row.amount || 0), 0).toFixed(2)}`}
+          </div>
+        </Modal>
       </div>
     </div>
   );

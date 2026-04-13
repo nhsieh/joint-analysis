@@ -129,6 +129,8 @@ func main() {
 	r.DELETE("/api/transactions", clearAllTransactions)
 	r.DELETE("/api/transactions/:id", deleteTransaction)
 	r.PUT("/api/transactions/:id/assign", assignTransaction)
+	r.GET("/api/transactions/:id/splits", getTransactionSplits)
+	r.PUT("/api/transactions/:id/splits", replaceTransactionSplits)
 	r.GET("/api/people", getPeople)
 	r.POST("/api/people", createPerson)
 	r.DELETE("/api/people/:id", deletePerson)

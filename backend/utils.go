@@ -16,7 +16,7 @@ import (
 
 // CategoryMapping maps categories by name for lookup
 type CategoryMapping struct {
-	categoriesByName map[string]generated.Category
+	categoriesByName map[string]generated.GetCategoriesRow
 }
 
 // Validation functions
@@ -70,7 +70,7 @@ func handleDatabaseError(err error) (statusCode int, message string) {
 
 // mapTransactionCategory determines the best category for a transaction using DB rules.
 // It loads all rules ordered by priority and matches against description and csvCategory.
-func (cm *CategoryMapping) mapTransactionCategory(description, csvCategory string) *generated.Category {
+func (cm *CategoryMapping) mapTransactionCategory(description, csvCategory string) *generated.GetCategoriesRow {
 	rules, err := queries.GetRulesForMatching(context.Background())
 	if err != nil {
 		log.Printf("Warning: failed to load categorization rules: %v", err)
@@ -110,7 +110,7 @@ func initializeCategoryMapping() (*CategoryMapping, error) {
 		return nil, fmt.Errorf("failed to load categories: %w", err)
 	}
 
-	categoriesByName := make(map[string]generated.Category)
+	categoriesByName := make(map[string]generated.GetCategoriesRow)
 	for _, category := range categories {
 		categoriesByName[category.Name] = category
 	}

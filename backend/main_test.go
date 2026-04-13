@@ -133,6 +133,8 @@ func setupTestRouter() {
 	testRouter.GET("/api/transactions", getTransactions)
 	testRouter.DELETE("/api/transactions", clearAllTransactions)
 	testRouter.PUT("/api/transactions/:id/assign", assignTransaction)
+	testRouter.GET("/api/transactions/:id/splits", getTransactionSplits)
+	testRouter.PUT("/api/transactions/:id/splits", replaceTransactionSplits)
 	testRouter.GET("/api/people", getPeople)
 	testRouter.POST("/api/people", createPerson)
 	testRouter.DELETE("/api/people/:id", deletePerson)

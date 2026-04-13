@@ -5,6 +5,7 @@ backend/jointanalysis
 frontend/node_modules
 # Ignore the build output directory
 frontend/build
+frontend/dist
 # Ignore the .env file
 /.env
 # Ignore the .DS_Store file (macOS)

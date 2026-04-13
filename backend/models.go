@@ -4,18 +4,30 @@ import "time"
 
 // Transaction represents a financial transaction
 type Transaction struct {
-	ID              string    `json:"id"`
-	Description     string    `json:"description"`
-	Amount          float64   `json:"amount"`
-	AssignedTo      []string  `json:"assigned_to"`
-	DateUploaded    time.Time `json:"date_uploaded"`
-	FileName        *string   `json:"file_name"`
-	TransactionDate *string   `json:"transaction_date"`
-	PostedDate      *string   `json:"posted_date"`
-	CardNumber      *string   `json:"card_number"`
-	CategoryID      *string   `json:"category_id"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID              string             `json:"id"`
+	Description     string             `json:"description"`
+	Amount          float64            `json:"amount"`
+	AssignedTo      []string           `json:"assigned_to"`
+	DateUploaded    time.Time          `json:"date_uploaded"`
+	FileName        *string            `json:"file_name"`
+	TransactionDate *string            `json:"transaction_date"`
+	PostedDate      *string            `json:"posted_date"`
+	CardNumber      *string            `json:"card_number"`
+	CategoryID      *string            `json:"category_id"`
+	Splits          []TransactionSplit `json:"splits,omitempty"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+}
+
+// TransactionSplit represents a split allocation row for a transaction
+type TransactionSplit struct {
+	ID            string    `json:"id"`
+	TransactionID string    `json:"transaction_id"`
+	Amount        float64   `json:"amount"`
+	CategoryID    string    `json:"category_id"`
+	Notes         *string   `json:"notes"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // Person represents a person who can be assigned to transactions

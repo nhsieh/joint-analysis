@@ -43,14 +43,23 @@ type ArchivePersonTotal struct {
 	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
 }
 
+type CategorizationRule struct {
+	ID         pgtype.UUID      `json:"id"`
+	MatchValue string           `json:"match_value"`
+	CategoryID pgtype.UUID      `json:"category_id"`
+	Priority   int32            `json:"priority"`
+	CreatedAt  pgtype.Timestamp `json:"created_at"`
+	UpdatedAt  pgtype.Timestamp `json:"updated_at"`
+}
+
 type Category struct {
 	ID          pgtype.UUID      `json:"id"`
 	Name        string           `json:"name"`
 	Description pgtype.Text      `json:"description"`
 	Color       pgtype.Text      `json:"color"`
-	ParentID    pgtype.UUID      `json:"parent_id"`
 	CreatedAt   pgtype.Timestamp `json:"created_at"`
 	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+	ParentID    pgtype.UUID      `json:"parent_id"`
 }
 
 type Person struct {
@@ -77,11 +86,12 @@ type Transaction struct {
 	ArchiveID       pgtype.UUID      `json:"archive_id"`
 }
 
-type CategorizationRule struct {
-	ID         pgtype.UUID      `json:"id"`
-	MatchValue string           `json:"match_value"`
-	CategoryID pgtype.UUID      `json:"category_id"`
-	Priority   int32            `json:"priority"`
-	CreatedAt  pgtype.Timestamp `json:"created_at"`
-	UpdatedAt  pgtype.Timestamp `json:"updated_at"`
+type TransactionSplit struct {
+	ID            pgtype.UUID      `json:"id"`
+	TransactionID pgtype.UUID      `json:"transaction_id"`
+	Amount        pgtype.Numeric   `json:"amount"`
+	CategoryID    pgtype.UUID      `json:"category_id"`
+	Notes         pgtype.Text      `json:"notes"`
+	CreatedAt     pgtype.Timestamp `json:"created_at"`
+	UpdatedAt     pgtype.Timestamp `json:"updated_at"`
 }
