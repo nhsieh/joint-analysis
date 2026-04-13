@@ -1,7 +1,7 @@
 # ADR-005: Split Transactions with Reimbursable Portion
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 
@@ -72,8 +72,9 @@ Validation rules:
 ### Read model
 
 Current API behavior:
-1. `GET /api/transactions` returns the existing transaction shape (no embedded `splits` array yet).
+1. `GET /api/transactions` returns transaction rows with embedded `splits`.
 2. `GET /api/transactions/{id}/splits` returns split rows for that transaction.
+3. `GET /api/archives/{id}/transactions` returns archived transaction rows with embedded `splits`.
 
 ## UI/UX Changes
 
@@ -85,10 +86,11 @@ In transaction editing UI:
 3. Real-time validation that all split amounts sum to original transaction amount.
 
 Display behavior:
-1. Current implementation: users can edit splits from the transaction action menu, but the main transaction table does not yet render split row summaries.
-2. Target behavior: transactions should show split rows and selected categories inline or in an expanded details view.
-3. `Reimbursable` is displayed like any other category.
-4. Any include/exclude behavior is done through generic category filters, not hardcoded category rules.
+1. Dashboard transactions: users can edit splits from the category cell and split rows are shown inline.
+2. Archives transactions: split category and split amount summaries are shown inline for split rows.
+3. Trends and dashboard charts aggregate split allocations (with fallback for legacy unsplit transactions).
+4. `Reimbursable` is displayed like any other category.
+5. Any include/exclude behavior is done through generic category filters, not hardcoded category rules.
 
 ## Consequences
 
@@ -114,6 +116,13 @@ Display behavior:
 - [x] Main transaction list/dashboard renders split summaries.
 - [x] Totals/category aggregation fully migrated to read from `transaction_splits`.
 
+## Known Limitations
+
+1. Trends currently excludes `Reimbursable` by existing UI rule for trend charts.
+2. Split amounts are stored as positive values and inherit sign from the parent transaction amount (no mixed-sign split rows in one transaction).
+3. `transactions.category_id` is still maintained for backward compatibility until Phase 3 cleanup.
+4. Archived person totals are snapshot values at archive time and are not recalculated retroactively.
+
 ## Migration Plan
 
 Phase 1:
@@ -123,7 +132,9 @@ Phase 1:
 Phase 2:
 1. Add splits endpoints and frontend split editor.
 2. Update totals/category endpoints to aggregate from `transaction_splits` with standard category-based filtering.
-3. Update transaction list/dashboard UI to display split summaries (currently missing).
+3. Update transaction list/dashboard UI to display split summaries.
+
+Phase 2 status: complete.
 
 Phase 3:
 1. Deprecate direct writes to `transactions.category_id`.

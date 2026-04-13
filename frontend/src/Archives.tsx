@@ -49,6 +49,7 @@ interface Transaction {
   posted_date: string;
   card_number: string;
   category_id: string;
+  splits?: { category_id: string; amount: number }[];
 }
 
 interface Person {
@@ -232,7 +233,31 @@ const Archives: React.FC = () => {
       title: 'Category',
       dataIndex: 'category_id',
       key: 'category_id',
-      render: (categoryId: string) => {
+      render: (categoryId: string, record: Transaction) => {
+        const splitRows = record.splits || [];
+
+        if (splitRows.length > 1) {
+          return (
+            <div style={{ fontSize: 11 }}>
+              {splitRows.map((split, idx) => {
+                const splitCategory = flatCategories.find(c => c.id === split.category_id);
+                const splitText = splitCategory?.parent_id
+                  ? `${flatCategories.find(c => c.id === splitCategory.parent_id)?.name || ''}${flatCategories.find(c => c.id === splitCategory.parent_id) ? ' / ' : ''}${splitCategory.name}`
+                  : splitCategory?.name || 'Uncategorized';
+                const splitColor = splitCategory?.parent_id
+                  ? (flatCategories.find(c => c.id === splitCategory.parent_id)?.color || splitCategory?.color)
+                  : splitCategory?.color;
+
+                return (
+                  <div key={`${record.id}-split-${idx}`}>
+                    <span style={{ color: splitColor || '#666' }}>{splitText}</span>: ${Number(split.amount || 0).toFixed(2)}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        }
+
         const category = flatCategories.find(c => c.id === categoryId);
         if (!category) return '-';
         if (category.parent_id) {
@@ -255,7 +280,28 @@ const Archives: React.FC = () => {
       title: 'Amount',
       dataIndex: 'amount',
       key: 'amount',
-      render: (amount: number) => `$${amount.toFixed(2)}`,
+      render: (amount: number, record: Transaction) => {
+        const splitRows = record.splits || [];
+
+        if (splitRows.length > 1) {
+          const sign = amount < 0 ? -1 : 1;
+
+          return (
+            <div>
+              <div>${amount.toFixed(2)}</div>
+              <div style={{ fontSize: 11, color: '#666' }}>
+                {splitRows.map((split, idx) => (
+                  <div key={`${record.id}-split-amount-${idx}`}>
+                    ${Number((sign * Number(split.amount || 0)).toFixed(2)).toFixed(2)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        return `$${amount.toFixed(2)}`;
+      },
       align: 'right',
       width: 100,
     },

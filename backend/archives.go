@@ -244,7 +244,16 @@ func getArchiveTransactions(c *gin.Context) {
 
 	var transactions []Transaction
 	for _, t := range dbTransactions {
-		transactions = append(transactions, convertTransactionFromArchivedRow(t))
+		transaction := convertTransactionFromArchivedRow(t)
+
+		splits, err := loadTransactionSplits(t.ID, t.Amount, t.CategoryID)
+		if err != nil {
+			log.Printf("Error loading splits for archived transaction %s: %v", transaction.ID, err)
+		} else {
+			transaction.Splits = splits
+		}
+
+		transactions = append(transactions, transaction)
 	}
 
 	c.JSON(http.StatusOK, transactions)

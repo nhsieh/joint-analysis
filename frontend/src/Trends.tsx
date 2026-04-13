@@ -104,7 +104,8 @@ const Trends: React.FC = () => {
 
     // Helper: resolve the effective (top-level) category name for a transaction.
     // Subcategories are rolled up to their parent so charts group consistently.
-    const resolveCategory = (categoryId: string): { name: string; topLevelName: string } => {
+    const resolveCategory = (categoryId?: string | null): { name: string; topLevelName: string } => {
+      if (!categoryId) return { name: 'Uncategorized', topLevelName: 'Uncategorized' };
       const cat = allCategories.find(c => c.id === categoryId);
       if (!cat) return { name: 'Uncategorized', topLevelName: 'Uncategorized' };
       if (cat.parent_id) {
@@ -130,67 +131,59 @@ const Trends: React.FC = () => {
         // Initialize category map for this archive
         topCategories.set(archiveLabel, new Map());
 
+        const personTotals = new Map<string, number>();
+
         // Process each transaction
         for (const transaction of transactions) {
-          const { name: categoryName, topLevelName } = resolveCategory(transaction.category_id);
-
-          // Skip Reimbursable category
-          if (topLevelName === 'Reimbursable') {
-            continue;
-          }
-
-          // Track for top categories (group by top-level category)
-          const archiveCategoryMap = topCategories.get(archiveLabel)!;
-          archiveCategoryMap.set(
-            topLevelName,
-            (archiveCategoryMap.get(topLevelName) || 0) + transaction.amount
-          );
-
-          // Calculate amount per person for this transaction
-          // Note: assigned_to contains person NAMES, not IDs
           const assignedPeople = transaction.assigned_to && transaction.assigned_to.length > 0
             ? transaction.assigned_to
             : people.map(p => p.name); // If no assignment, assign to all people
 
           const numPeople = assignedPeople.length;
-          const amountPerPerson = transaction.amount / numPeople;
+          const txSign = transaction.amount < 0 ? -1 : 1;
+          const allocations = (transaction.splits && transaction.splits.length > 0)
+            ? transaction.splits.map(split => ({
+                categoryId: split.category_id,
+                amount: txSign * Number(split.amount || 0),
+              }))
+            : [{
+                categoryId: transaction.category_id,
+                amount: Number(transaction.amount || 0),
+              }];
 
-          for (const personName of assignedPeople) {
-            const person = people.find(p => p.name === personName);
-            if (!person) {
+          for (const allocation of allocations) {
+            const { name: categoryName, topLevelName } = resolveCategory(allocation.categoryId);
+
+            // Skip Reimbursable category
+            if (topLevelName === 'Reimbursable') {
               continue;
             }
 
-            // Add to category spending data (store subcategory name so pie chart can drill down)
-            categorySpending.push({
-              archive: archiveLabel,
-              person: person.name,
-              amount: amountPerPerson,
-              category: categoryName,
-            });
-          }
-        }
+            // Track for top categories (group by top-level category)
+            const archiveCategoryMap = topCategories.get(archiveLabel)!;
+            archiveCategoryMap.set(
+              topLevelName,
+              (archiveCategoryMap.get(topLevelName) || 0) + allocation.amount
+            );
 
-        // Calculate total spending per person from filtered transactions (excluding Reimbursable)
-        const personTotals = new Map<string, number>();
+            const amountPerPerson = allocation.amount / numPeople;
 
-        for (const transaction of transactions) {
-          const { topLevelName: categoryName } = resolveCategory(transaction.category_id);
+            for (const personName of assignedPeople) {
+              const person = people.find(p => p.name === personName);
+              if (!person) {
+                continue;
+              }
 
-          // Skip Reimbursable category for totals
-          if (categoryName === 'Reimbursable') {
-            continue;
-          }
+              // Add to category spending data (store subcategory name so pie chart can drill down)
+              categorySpending.push({
+                archive: archiveLabel,
+                person: person.name,
+                amount: amountPerPerson,
+                category: categoryName,
+              });
 
-          const assignedPeople = transaction.assigned_to && transaction.assigned_to.length > 0
-            ? transaction.assigned_to
-            : people.map(p => p.name);
-
-          const numPeople = assignedPeople.length;
-          const amountPerPerson = transaction.amount / numPeople;
-
-          for (const personName of assignedPeople) {
-            personTotals.set(personName, (personTotals.get(personName) || 0) + amountPerPerson);
+              personTotals.set(personName, (personTotals.get(personName) || 0) + amountPerPerson);
+            }
           }
         }
 
