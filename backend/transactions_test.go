@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"jointanalysis/db/generated"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -41,6 +40,31 @@ func createTestTransaction(description string, amount float64, fileName string, 
 
 	var id pgtype.UUID
 	err := testDB.QueryRow(context.Background(), query, description, amountDecimal, assignedUUIDs, fileName).Scan(&id)
+	if err != nil {
+		return "", err
+	}
+
+	var otherCategoryID pgtype.UUID
+	err = testDB.QueryRow(context.Background(), "SELECT id FROM categories WHERE name = 'Other' LIMIT 1").Scan(&otherCategoryID)
+	if err != nil {
+		return "", err
+	}
+
+	splitAmount := amount
+	if splitAmount < 0 {
+		splitAmount = -splitAmount
+	}
+
+	var splitID pgtype.UUID
+	err = testDB.QueryRow(
+		context.Background(),
+		`INSERT INTO transaction_splits (transaction_id, amount, category_id)
+		 VALUES ($1, $2, $3)
+		 RETURNING id`,
+		id,
+		splitAmount,
+		otherCategoryID,
+	).Scan(&splitID)
 	if err != nil {
 		return "", err
 	}
@@ -296,126 +320,13 @@ func TestAssignTransaction(t *testing.T) {
 	})
 }
 
-// TestUpdateTransactionCategory tests the PUT /api/transactions/:id/category endpoint
-func TestUpdateTransactionCategory(t *testing.T) {
-	// Clean data before test
-	if err := cleanupTestData(); err != nil {
-		t.Fatalf("Failed to cleanup test data: %v", err)
-	}
-
-	t.Run("should update transaction category successfully", func(t *testing.T) {
-		// Create test category with unique name
-		categoryID, err := createTestCategory("Custom Food", "Restaurant and grocery expenses", "#FF5733")
-		assertNoError(t, err)
-
-		// Create test transaction
-		transactionID, err := createTestTransaction("Restaurant Bill", 75.00, "test.csv", nil)
-		assertNoError(t, err)
-
-		// Update transaction category
-		requestBody := map[string]interface{}{
-			"category_id": categoryID,
-		}
-
-		body, err := json.Marshal(requestBody)
-		assertNoError(t, err)
-
-		resp := makeRequest("PUT", fmt.Sprintf("/api/transactions/%s/category", transactionID), bytes.NewBuffer(body))
-
-		assertStatusCode(t, http.StatusOK, resp.Code)
-
-		var transaction Transaction
-		assertNoError(t, parseJSONResponse(resp, &transaction))
-
-		if transaction.CategoryID == nil || *transaction.CategoryID != categoryID {
-			t.Errorf("Expected category ID %s, got %v", categoryID, transaction.CategoryID)
-		}
-	})
-
-	t.Run("should clear transaction category with null", func(t *testing.T) {
-		// Create test transaction
-		transactionID, err := createTestTransaction("Uncategorized Purchase", 30.00, "test.csv", nil)
-		assertNoError(t, err)
-
-		// Clear category by setting to null
-		requestBody := map[string]interface{}{
-			"category_id": nil,
-		}
-
-		body, err := json.Marshal(requestBody)
-		assertNoError(t, err)
-
-		resp := makeRequest("PUT", fmt.Sprintf("/api/transactions/%s/category", transactionID), bytes.NewBuffer(body))
-
-		assertStatusCode(t, http.StatusOK, resp.Code)
-
-		var transaction Transaction
-		assertNoError(t, parseJSONResponse(resp, &transaction))
-
-		if transaction.CategoryID != nil {
-			t.Errorf("Expected nil category ID, got %v", transaction.CategoryID)
-		}
-	})
-
-	t.Run("should fail with invalid transaction ID", func(t *testing.T) {
-		requestBody := map[string]interface{}{
-			"category_id": nil,
-		}
-
-		body, err := json.Marshal(requestBody)
-		assertNoError(t, err)
-
-		resp := makeRequest("PUT", "/api/transactions/invalid-uuid/category", bytes.NewBuffer(body))
-
-		assertStatusCode(t, http.StatusBadRequest, resp.Code)
-	})
-
-	t.Run("should fail with non-existent transaction ID", func(t *testing.T) {
-		fakeID := "550e8400-e29b-41d4-a716-446655440000"
-
-		requestBody := map[string]interface{}{
-			"category_id": nil,
-		}
-
-		body, err := json.Marshal(requestBody)
-		assertNoError(t, err)
-
-		resp := makeRequest("PUT", fmt.Sprintf("/api/transactions/%s/category", fakeID), bytes.NewBuffer(body))
-
-		assertStatusCode(t, http.StatusNotFound, resp.Code)
-	})
-
-	t.Run("should fail with invalid JSON", func(t *testing.T) {
-		transactionID, err := createTestTransaction("Test Transaction", 50.00, "test.csv", nil)
-		assertNoError(t, err)
-
-		resp := makeRequest("PUT", fmt.Sprintf("/api/transactions/%s/category", transactionID), bytes.NewBufferString("invalid json"))
-
-		assertStatusCode(t, http.StatusBadRequest, resp.Code)
-	})
-}
-
 func TestTransactionSplits(t *testing.T) {
 	if err := cleanupTestData(); err != nil {
 		t.Fatalf("Failed to cleanup test data: %v", err)
 	}
 
-	t.Run("should return default split when no stored splits", func(t *testing.T) {
-		categoryID, err := createTestCategory("Split Test Category", "", "#111111")
-		assertNoError(t, err)
-
+	t.Run("should return stored split rows", func(t *testing.T) {
 		transactionID, err := createTestTransaction("Split Default", 90.00, "test.csv", nil)
-		assertNoError(t, err)
-
-		transactionUUID, err := uuid.Parse(transactionID)
-		assertNoError(t, err)
-		categoryUUID, err := uuid.Parse(categoryID)
-		assertNoError(t, err)
-
-		_, err = testQueries.UpdateTransactionCategory(context.Background(), generated.UpdateTransactionCategoryParams{
-			ID:         pgtype.UUID{Bytes: transactionUUID, Valid: true},
-			CategoryID: pgtype.UUID{Bytes: categoryUUID, Valid: true},
-		})
 		assertNoError(t, err)
 
 		resp := makeRequest("GET", fmt.Sprintf("/api/transactions/%s/splits", transactionID), nil)
@@ -427,8 +338,8 @@ func TestTransactionSplits(t *testing.T) {
 		if len(splits) != 1 {
 			t.Fatalf("Expected 1 split, got %d", len(splits))
 		}
-		if splits[0].CategoryID != categoryID {
-			t.Errorf("Expected category %s, got %s", categoryID, splits[0].CategoryID)
+		if splits[0].CategoryID == "" {
+			t.Errorf("Expected non-empty category ID")
 		}
 		if splits[0].Amount != 90.00 {
 			t.Errorf("Expected amount 90.00, got %.2f", splits[0].Amount)

@@ -40,25 +40,10 @@ func convertTransactionSplitRow(s generated.TransactionSplit) TransactionSplit {
 	return result
 }
 
-func loadTransactionSplits(transactionID pgtype.UUID, amount pgtype.Numeric, categoryID pgtype.UUID) ([]TransactionSplit, error) {
+func loadTransactionSplits(transactionID pgtype.UUID) ([]TransactionSplit, error) {
 	splits, err := queries.GetTransactionSplitsByTransactionID(context.Background(), transactionID)
 	if err != nil {
 		return nil, err
-	}
-
-	if len(splits) == 0 {
-		if !categoryID.Valid {
-			return []TransactionSplit{}, nil
-		}
-
-		amountValue, _ := amount.Float64Value()
-		defaultSplit := TransactionSplit{
-			ID:            "",
-			TransactionID: uuid.UUID(transactionID.Bytes).String(),
-			Amount:        math.Abs(amountValue.Float64),
-			CategoryID:    uuid.UUID(categoryID.Bytes).String(),
-		}
-		return []TransactionSplit{defaultSplit}, nil
 	}
 
 	result := make([]TransactionSplit, 0, len(splits))
@@ -70,7 +55,7 @@ func loadTransactionSplits(transactionID pgtype.UUID, amount pgtype.Numeric, cat
 }
 
 // @Summary Get transaction splits
-// @Description Retrieve split rows for a transaction. Returns a default single split derived from transaction category/amount when no explicit splits are stored.
+// @Description Retrieve split rows for a transaction.
 // @Tags transactions
 // @Produce json
 // @Param id path string true "Transaction ID"
@@ -89,14 +74,14 @@ func getTransactionSplits(c *gin.Context) {
 
 	transactionID := pgtype.UUID{Bytes: transactionUUID, Valid: true}
 
-	tx, err := queries.GetTransactionByID(context.Background(), transactionID)
+	_, err = queries.GetTransactionByID(context.Background(), transactionID)
 	if err != nil {
 		statusCode, message := handleDatabaseError(err)
 		c.JSON(statusCode, gin.H{"error": message})
 		return
 	}
 
-	splits, err := loadTransactionSplits(transactionID, tx.Amount, tx.CategoryID)
+	splits, err := loadTransactionSplits(transactionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching transaction splits"})
 		return
@@ -106,7 +91,7 @@ func getTransactionSplits(c *gin.Context) {
 }
 
 // @Summary Replace transaction splits
-// @Description Replace all split rows for a transaction and sync transaction category to the first split for backward compatibility.
+// @Description Replace all split rows for a transaction.
 // @Tags transactions
 // @Accept json
 // @Produce json
@@ -206,18 +191,6 @@ func replaceTransactionSplits(c *gin.Context) {
 		}
 		created = append(created, convertTransactionSplitRow(row))
 
-		if i == 0 {
-			// Keep legacy category_id aligned to first split for backward compatibility.
-			_, err := queries.UpdateTransactionCategory(context.Background(), generated.UpdateTransactionCategoryParams{
-				ID:         transactionID,
-				CategoryID: pgtype.UUID{Bytes: categoryUUID, Valid: true},
-			})
-			if err != nil {
-				statusCode, message := handleDatabaseError(err)
-				c.JSON(statusCode, gin.H{"error": message})
-				return
-			}
-		}
 	}
 
 	c.JSON(http.StatusOK, created)

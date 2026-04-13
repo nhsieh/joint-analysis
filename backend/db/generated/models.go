@@ -80,7 +80,6 @@ type Transaction struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 	ArchiveID       pgtype.UUID      `json:"archive_id"`

@@ -5,7 +5,7 @@ Accepted
 
 ## Context
 
-Today, a transaction has exactly one `category_id` (`backend/models.go` and `transactions` table), so a single purchase cannot be split into two categorized portions.
+A transaction now stores category allocations through split rows, enabling one purchase to be divided across multiple categories.
 
 The requested workflow is:
 1. Keep one normal selectable category for the personal/shared expense portion.
@@ -22,7 +22,7 @@ Introduce **transaction splits** as first-class data. A transaction can have any
 1. splits use user-selectable categories (`category_id` required)
 2. categories are treated uniformly; `Reimbursable` has no special backend or UI logic
 
-The top-level `transactions.category_id` will be retained temporarily for backward compatibility and phased out after frontend + API migration.
+`transactions.category_id` has been removed; split rows are the source of truth for category allocation.
 
 ## Data Model
 
@@ -88,7 +88,7 @@ In transaction editing UI:
 Display behavior:
 1. Dashboard transactions: users can edit splits from the category cell and split rows are shown inline.
 2. Archives transactions: split category and split amount summaries are shown inline for split rows.
-3. Trends and dashboard charts aggregate split allocations (with fallback for legacy unsplit transactions).
+3. Trends and dashboard charts aggregate split allocations.
 4. `Reimbursable` is displayed like any other category.
 5. Any include/exclude behavior is done through generic category filters, not hardcoded category rules.
 
@@ -115,13 +115,13 @@ Display behavior:
 - [x] `GET /api/transactions` includes embedded `splits` array.
 - [x] Main transaction list/dashboard renders split summaries.
 - [x] Totals/category aggregation fully migrated to read from `transaction_splits`.
+- [x] Legacy `transactions.category_id` removed and category updates are split-only.
 
 ## Known Limitations
 
 1. Trends currently excludes `Reimbursable` by existing UI rule for trend charts.
 2. Split amounts are stored as positive values and inherit sign from the parent transaction amount (no mixed-sign split rows in one transaction).
-3. `transactions.category_id` is still maintained for backward compatibility until Phase 3 cleanup.
-4. Archived person totals are snapshot values at archive time and are not recalculated retroactively.
+3. Archived person totals are snapshot values at archive time and are not recalculated retroactively.
 
 ## Migration Plan
 
@@ -139,6 +139,8 @@ Phase 2 status: complete.
 Phase 3:
 1. Deprecate direct writes to `transactions.category_id`.
 2. Remove legacy field once clients are migrated.
+
+Phase 3 status: complete.
 
 ## Alternatives Considered
 

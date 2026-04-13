@@ -138,7 +138,6 @@ func main() {
 	r.POST("/api/categories", createCategory)
 	r.PUT("/api/categories/:id", updateCategory)
 	r.DELETE("/api/categories/:id", deleteCategory)
-	r.PUT("/api/transactions/:id/category", updateTransactionCategory)
 	r.GET("/api/totals", getTotals)
 	r.POST("/api/archives", createArchive)
 	r.GET("/api/archives", getArchives)

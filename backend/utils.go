@@ -183,7 +183,7 @@ func convertUUIDStringsToArray(uuidStrings []string) ([]pgtype.UUID, error) {
 func convertTransaction(t generated.Transaction) Transaction {
 	return convertTransactionFromFields(
 		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
-		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
+		t.TransactionDate, t.PostedDate, t.CardNumber, t.CreatedAt, t.UpdatedAt,
 	)
 }
 
@@ -191,7 +191,7 @@ func convertTransaction(t generated.Transaction) Transaction {
 func convertTransactionFromGetRow(t generated.Transaction) Transaction {
 	return convertTransactionFromFields(
 		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
-		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
+		t.TransactionDate, t.PostedDate, t.CardNumber, t.CreatedAt, t.UpdatedAt,
 	)
 }
 
@@ -199,7 +199,7 @@ func convertTransactionFromGetRow(t generated.Transaction) Transaction {
 func convertTransactionFromUpdateRow(t generated.Transaction) Transaction {
 	return convertTransactionFromFields(
 		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
-		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
+		t.TransactionDate, t.PostedDate, t.CardNumber, t.CreatedAt, t.UpdatedAt,
 	)
 }
 
@@ -207,15 +207,7 @@ func convertTransactionFromUpdateRow(t generated.Transaction) Transaction {
 func convertTransactionFromUpdateAssignmentRow(t generated.UpdateTransactionAssignmentRow) Transaction {
 	return convertTransactionFromFields(
 		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
-		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
-	)
-}
-
-// convertTransactionFromUpdateCategoryRow converts from update category result
-func convertTransactionFromUpdateCategoryRow(t generated.UpdateTransactionCategoryRow) Transaction {
-	return convertTransactionFromFields(
-		t.ID, t.Description, t.Amount, t.AssignedTo, t.DateUploaded, t.FileName,
-		t.TransactionDate, t.PostedDate, t.CardNumber, t.CategoryID, t.CreatedAt, t.UpdatedAt,
+		t.TransactionDate, t.PostedDate, t.CardNumber, t.CreatedAt, t.UpdatedAt,
 	)
 }
 
@@ -230,7 +222,6 @@ func convertTransactionFromFields(
 	transactionDate pgtype.Date,
 	postedDate pgtype.Date,
 	cardNumber pgtype.Text,
-	categoryID pgtype.UUID,
 	createdAt pgtype.Timestamp,
 	updatedAt pgtype.Timestamp,
 ) Transaction {
@@ -274,10 +265,6 @@ func convertTransactionFromFields(
 	}
 	if cardNumber.Valid {
 		result.CardNumber = &cardNumber.String
-	}
-	if categoryID.Valid {
-		categoryStr := uuid.UUID(categoryID.Bytes).String()
-		result.CategoryID = &categoryStr
 	}
 
 	return result
@@ -328,11 +315,6 @@ func convertTransactionFromActiveRow(t generated.GetActiveTransactionsRow) Trans
 	if t.CardNumber.Valid {
 		transaction.CardNumber = &t.CardNumber.String
 	}
-	if t.CategoryID.Valid {
-		categoryID := uuid.UUID(t.CategoryID.Bytes).String()
-		transaction.CategoryID = &categoryID
-	}
-
 	return transaction
 }
 
@@ -380,10 +362,5 @@ func convertTransactionFromArchivedRow(t generated.GetArchivedTransactionsRow) T
 	if t.CardNumber.Valid {
 		transaction.CardNumber = &t.CardNumber.String
 	}
-	if t.CategoryID.Valid {
-		categoryID := uuid.UUID(t.CategoryID.Bytes).String()
-		transaction.CategoryID = &categoryID
-	}
-
 	return transaction
 }

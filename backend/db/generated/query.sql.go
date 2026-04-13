@@ -16,7 +16,7 @@ UPDATE transactions
 SET assigned_to = array_append(COALESCE(assigned_to, '{}'), $2), updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
+          transaction_date, posted_date, card_number,
           created_at, updated_at
 `
 
@@ -35,7 +35,6 @@ type AddPersonToTransactionRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -53,7 +52,6 @@ func (q *Queries) AddPersonToTransaction(ctx context.Context, arg AddPersonToTra
 		&i.TransactionDate,
 		&i.PostedDate,
 		&i.CardNumber,
-		&i.CategoryID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -220,10 +218,10 @@ func (q *Queries) CreateRule(ctx context.Context, arg CreateRuleParams) (Categor
 }
 
 const createTransaction = `-- name: CreateTransaction :one
-INSERT INTO transactions (description, amount, file_name, transaction_date, posted_date, card_number, category_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO transactions (description, amount, file_name, transaction_date, posted_date, card_number)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
+          transaction_date, posted_date, card_number,
           created_at, updated_at
 `
 
@@ -234,7 +232,6 @@ type CreateTransactionParams struct {
 	TransactionDate pgtype.Date    `json:"transaction_date"`
 	PostedDate      pgtype.Date    `json:"posted_date"`
 	CardNumber      pgtype.Text    `json:"card_number"`
-	CategoryID      pgtype.UUID    `json:"category_id"`
 }
 
 type CreateTransactionRow struct {
@@ -247,7 +244,6 @@ type CreateTransactionRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -260,7 +256,6 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		arg.TransactionDate,
 		arg.PostedDate,
 		arg.CardNumber,
-		arg.CategoryID,
 	)
 	var i CreateTransactionRow
 	err := row.Scan(
@@ -273,7 +268,6 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		&i.TransactionDate,
 		&i.PostedDate,
 		&i.CardNumber,
-		&i.CategoryID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -428,23 +422,11 @@ func (q *Queries) FindDuplicateTransaction(ctx context.Context, arg FindDuplicat
 const getActiveTransactionGrandTotal = `-- name: GetActiveTransactionGrandTotal :one
 WITH normalized_transaction_totals AS (
     SELECT t.id,
-      SUM(CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END)::numeric AS normalized_amount
+           SUM(CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END)::numeric AS normalized_amount
     FROM transactions t
     JOIN transaction_splits ts ON ts.transaction_id = t.id
     WHERE t.archive_id IS NULL
     GROUP BY t.id
-
-    UNION ALL
-
-    SELECT t.id,
-      t.amount::numeric AS normalized_amount
-    FROM transactions t
-    WHERE t.archive_id IS NULL
-      AND NOT EXISTS (
-     SELECT 1
-     FROM transaction_splits ts
-     WHERE ts.transaction_id = t.id
-      )
 )
 SELECT COALESCE(SUM(nt.normalized_amount / array_length(t.assigned_to, 1)), 0)::numeric as grand_total
 FROM transactions t
@@ -465,23 +447,11 @@ func (q *Queries) GetActiveTransactionGrandTotal(ctx context.Context) (pgtype.Nu
 const getActiveTransactionTotals = `-- name: GetActiveTransactionTotals :many
 WITH normalized_transaction_totals AS (
     SELECT t.id,
-      SUM(CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END)::numeric AS normalized_amount
+           SUM(CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END)::numeric AS normalized_amount
     FROM transactions t
     JOIN transaction_splits ts ON ts.transaction_id = t.id
     WHERE t.archive_id IS NULL
     GROUP BY t.id
-
-    UNION ALL
-
-    SELECT t.id,
-      t.amount::numeric AS normalized_amount
-    FROM transactions t
-    WHERE t.archive_id IS NULL
-      AND NOT EXISTS (
-     SELECT 1
-     FROM transaction_splits ts
-     WHERE ts.transaction_id = t.id
-      )
 )
 SELECT p.name as assigned_to, SUM(nt.normalized_amount / array_length(t.assigned_to, 1))::numeric as total
 FROM transactions t
@@ -522,7 +492,7 @@ func (q *Queries) GetActiveTransactionTotals(ctx context.Context) ([]GetActiveTr
 
 const getActiveTransactions = `-- name: GetActiveTransactions :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 WHERE archive_id IS NULL
@@ -539,7 +509,6 @@ type GetActiveTransactionsRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -563,7 +532,6 @@ func (q *Queries) GetActiveTransactions(ctx context.Context) ([]GetActiveTransac
 			&i.TransactionDate,
 			&i.PostedDate,
 			&i.CardNumber,
-			&i.CategoryID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -646,7 +614,7 @@ func (q *Queries) GetArchivePersonTotals(ctx context.Context, archiveID pgtype.U
 
 const getArchivedTransactions = `-- name: GetArchivedTransactions :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id, archive_id,
+  transaction_date, posted_date, card_number, archive_id,
        created_at, updated_at
 FROM transactions
 WHERE archive_id = $1
@@ -663,7 +631,6 @@ type GetArchivedTransactionsRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	ArchiveID       pgtype.UUID      `json:"archive_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
@@ -688,7 +655,6 @@ func (q *Queries) GetArchivedTransactions(ctx context.Context, archiveID pgtype.
 			&i.TransactionDate,
 			&i.PostedDate,
 			&i.CardNumber,
-			&i.CategoryID,
 			&i.ArchiveID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -1117,22 +1083,11 @@ func (q *Queries) GetTopLevelCategories(ctx context.Context) ([]GetTopLevelCateg
 
 const getTotalsByAssignedTo = `-- name: GetTotalsByAssignedTo :many
 WITH normalized_transaction_totals AS (
-  SELECT t.id,
-       SUM(CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END)::numeric AS normalized_amount
-  FROM transactions t
-  JOIN transaction_splits ts ON ts.transaction_id = t.id
-  GROUP BY t.id
-
-  UNION ALL
-
-  SELECT t.id,
-       t.amount::numeric AS normalized_amount
-  FROM transactions t
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM transaction_splits ts
-    WHERE ts.transaction_id = t.id
-  )
+    SELECT t.id,
+           SUM(CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END)::numeric AS normalized_amount
+    FROM transactions t
+    JOIN transaction_splits ts ON ts.transaction_id = t.id
+    GROUP BY t.id
 )
 SELECT p.name as assigned_to, SUM(nt.normalized_amount / array_length(t.assigned_to, 1))::numeric as total
 FROM transactions t
@@ -1172,21 +1127,9 @@ func (q *Queries) GetTotalsByAssignedTo(ctx context.Context) ([]GetTotalsByAssig
 const getTotalsByCategory = `-- name: GetTotalsByCategory :many
 WITH normalized_category_amounts AS (
     SELECT ts.category_id,
-      CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END AS signed_amount
+           CASE WHEN t.amount < 0 THEN -ts.amount ELSE ts.amount END AS signed_amount
     FROM transactions t
     JOIN transaction_splits ts ON ts.transaction_id = t.id
-
-    UNION ALL
-
-    SELECT t.category_id,
-      t.amount::numeric AS signed_amount
-    FROM transactions t
-    WHERE t.category_id IS NOT NULL
-      AND NOT EXISTS (
-     SELECT 1
-     FROM transaction_splits ts
-     WHERE ts.transaction_id = t.id
-      )
 )
 SELECT c.name as category_name, SUM(nca.signed_amount)::numeric as total
 FROM normalized_category_amounts nca
@@ -1222,7 +1165,7 @@ func (q *Queries) GetTotalsByCategory(ctx context.Context) ([]GetTotalsByCategor
 
 const getTransactionByID = `-- name: GetTransactionByID :one
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 WHERE id = $1
@@ -1238,7 +1181,6 @@ type GetTransactionByIDRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -1256,7 +1198,6 @@ func (q *Queries) GetTransactionByID(ctx context.Context, id pgtype.UUID) (GetTr
 		&i.TransactionDate,
 		&i.PostedDate,
 		&i.CardNumber,
-		&i.CategoryID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -1300,7 +1241,7 @@ func (q *Queries) GetTransactionSplitsByTransactionID(ctx context.Context, trans
 
 const getTransactions = `-- name: GetTransactions :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 ORDER BY date_uploaded DESC
@@ -1316,7 +1257,6 @@ type GetTransactionsRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -1341,7 +1281,6 @@ func (q *Queries) GetTransactions(ctx context.Context) ([]GetTransactionsRow, er
 			&i.TransactionDate,
 			&i.PostedDate,
 			&i.CardNumber,
-			&i.CategoryID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1357,7 +1296,7 @@ func (q *Queries) GetTransactions(ctx context.Context) ([]GetTransactionsRow, er
 
 const getTransactionsByAssignedTo = `-- name: GetTransactionsByAssignedTo :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 WHERE $1 = ANY(assigned_to)
@@ -1374,7 +1313,6 @@ type GetTransactionsByAssignedToRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -1398,7 +1336,6 @@ func (q *Queries) GetTransactionsByAssignedTo(ctx context.Context, assignedTo []
 			&i.TransactionDate,
 			&i.PostedDate,
 			&i.CardNumber,
-			&i.CategoryID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1414,7 +1351,7 @@ func (q *Queries) GetTransactionsByAssignedTo(ctx context.Context, assignedTo []
 
 const getTransactionsByFileName = `-- name: GetTransactionsByFileName :many
 SELECT id, description, amount, assigned_to, date_uploaded, file_name,
-       transaction_date, posted_date, card_number, category_id,
+  transaction_date, posted_date, card_number,
        created_at, updated_at
 FROM transactions
 WHERE file_name = $1
@@ -1431,7 +1368,6 @@ type GetTransactionsByFileNameRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -1455,7 +1391,6 @@ func (q *Queries) GetTransactionsByFileName(ctx context.Context, fileName pgtype
 			&i.TransactionDate,
 			&i.PostedDate,
 			&i.CardNumber,
-			&i.CategoryID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1474,7 +1409,7 @@ UPDATE transactions
 SET assigned_to = array_remove(assigned_to, $2), updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
+          transaction_date, posted_date, card_number,
           created_at, updated_at
 `
 
@@ -1493,7 +1428,6 @@ type RemovePersonFromTransactionRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -1511,7 +1445,6 @@ func (q *Queries) RemovePersonFromTransaction(ctx context.Context, arg RemovePer
 		&i.TransactionDate,
 		&i.PostedDate,
 		&i.CardNumber,
-		&i.CategoryID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -1665,7 +1598,7 @@ UPDATE transactions
 SET assigned_to = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
+          transaction_date, posted_date, card_number,
           created_at, updated_at
 `
 
@@ -1684,7 +1617,6 @@ type UpdateTransactionAssignmentRow struct {
 	TransactionDate pgtype.Date      `json:"transaction_date"`
 	PostedDate      pgtype.Date      `json:"posted_date"`
 	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 }
@@ -1702,56 +1634,6 @@ func (q *Queries) UpdateTransactionAssignment(ctx context.Context, arg UpdateTra
 		&i.TransactionDate,
 		&i.PostedDate,
 		&i.CardNumber,
-		&i.CategoryID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const updateTransactionCategory = `-- name: UpdateTransactionCategory :one
-UPDATE transactions
-SET category_id = $2, updated_at = CURRENT_TIMESTAMP
-WHERE id = $1
-RETURNING id, description, amount, assigned_to, date_uploaded, file_name,
-          transaction_date, posted_date, card_number, category_id,
-          created_at, updated_at
-`
-
-type UpdateTransactionCategoryParams struct {
-	ID         pgtype.UUID `json:"id"`
-	CategoryID pgtype.UUID `json:"category_id"`
-}
-
-type UpdateTransactionCategoryRow struct {
-	ID              pgtype.UUID      `json:"id"`
-	Description     string           `json:"description"`
-	Amount          pgtype.Numeric   `json:"amount"`
-	AssignedTo      []pgtype.UUID    `json:"assigned_to"`
-	DateUploaded    pgtype.Timestamp `json:"date_uploaded"`
-	FileName        pgtype.Text      `json:"file_name"`
-	TransactionDate pgtype.Date      `json:"transaction_date"`
-	PostedDate      pgtype.Date      `json:"posted_date"`
-	CardNumber      pgtype.Text      `json:"card_number"`
-	CategoryID      pgtype.UUID      `json:"category_id"`
-	CreatedAt       pgtype.Timestamp `json:"created_at"`
-	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
-}
-
-func (q *Queries) UpdateTransactionCategory(ctx context.Context, arg UpdateTransactionCategoryParams) (UpdateTransactionCategoryRow, error) {
-	row := q.db.QueryRow(ctx, updateTransactionCategory, arg.ID, arg.CategoryID)
-	var i UpdateTransactionCategoryRow
-	err := row.Scan(
-		&i.ID,
-		&i.Description,
-		&i.Amount,
-		&i.AssignedTo,
-		&i.DateUploaded,
-		&i.FileName,
-		&i.TransactionDate,
-		&i.PostedDate,
-		&i.CardNumber,
-		&i.CategoryID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

@@ -25,7 +25,6 @@ export interface Transaction {
   transaction_date?: string;
   posted_date?: string;
   card_number?: string;
-  category_id?: string | null;
   splits?: TransactionSplit[];
 }
 

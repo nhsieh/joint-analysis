@@ -34,7 +34,7 @@ import { Transaction, Person, Category, PersonTotal, TransactionSplit } from './
 import { getCategoryColor, generateColorVariants } from './utils';
 
 const { Text } = Typography;
-const { Option, OptGroup } = Select;
+const { Option } = Select;
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
 
 const Dashboard: React.FC = () => {
@@ -133,10 +133,7 @@ const Dashboard: React.FC = () => {
             categoryId: split.category_id,
             amount: txSign * Number(split.amount || 0),
           }))
-        : [{
-            categoryId: transaction.category_id || null,
-            amount: Number(transaction.amount || 0),
-          }];
+        : [];
 
       categoryAllocations.forEach(allocation => {
         const txCategory = allocation.categoryId
@@ -308,18 +305,6 @@ const Dashboard: React.FC = () => {
         }
       },
     });
-  };
-
-  const updateTransactionCategory = async (transactionId: string, categoryId: string | null) => {
-    try {
-      await axios.put(`${API_URL}/api/transactions/${transactionId}/category`, {
-        category_id: categoryId,
-      });
-      fetchTransactions();
-    } catch (error) {
-      console.error('Error updating transaction category:', error);
-      message.error('Error updating transaction category');
-    }
   };
 
   const openSplitModal = async (transaction: Transaction) => {
@@ -502,70 +487,21 @@ const Dashboard: React.FC = () => {
     },
     {
       title: 'Category',
-      dataIndex: 'category_id',
+      dataIndex: 'splits',
       key: 'category_id',
-      render: (categoryId: string, record: Transaction) => {
-        const isSplitTransaction = (record.splits || []).length > 1;
-
-        if (isSplitTransaction) {
-          return (
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%' }}>
-              <div style={{ fontSize: 11, color: '#666', flex: 1, minWidth: 0 }}>
-                {(record.splits || []).map((split, idx) => (
-                  <div key={`${record.id}-split-${idx}`}>
-                    <span style={{ color: getCategoryColorByID(split.category_id) || '#666' }}>
-                      {getCategoryNameByID(split.category_id)}
-                    </span>
-                    : ${Number(split.amount || 0).toFixed(2)}
-                  </div>
-                ))}
-              </div>
-              <Button
-                type="text"
-                size="small"
-                icon={<SwapOutlined />}
-                onClick={() => openSplitModal(record)}
-                title="Edit splits"
-              />
-            </div>
-          );
-        }
-
+      render: (_: TransactionSplit[] | undefined, record: Transaction) => {
         return (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%' }}>
-            <Select
-              style={{ flex: 1, minWidth: 0, fontSize: 12 }}
-              dropdownStyle={{ fontSize: 12 }}
-              placeholder="Select category"
-              value={categoryId || undefined}
-              onChange={(value) => updateTransactionCategory(record.id, value || null)}
-              allowClear
-              showSearch
-              optionFilterProp="label"
-            >
-              {categories.map((category) => {
-                const subs = category.subcategories || [];
-                if (subs.length > 0) {
-                  return [
-                    <Option key={category.id} value={category.id} label={category.name}>
-                      <span style={{ color: category.color, fontWeight: 600, fontSize: 12 }}>{category.name}</span>
-                    </Option>,
-                    ...subs.map((sub) => (
-                      <Option key={sub.id} value={sub.id} label={`${category.name} / ${sub.name}`}>
-                        <span style={{ color: category.color, paddingLeft: 8, fontSize: 12 }}>↳ {sub.name}</span>
-                      </Option>
-                    )),
-                  ];
-                }
-                return (
-                  <Option key={category.id} value={category.id} label={category.name}>
-                    <span style={{ color: category.color, fontSize: 12 }}>
-                      {category.name}
-                    </span>
-                  </Option>
-                );
-              })}
-            </Select>
+            <div style={{ fontSize: 11, color: '#666', flex: 1, minWidth: 0 }}>
+              {(record.splits || []).map((split, idx) => (
+                <div key={`${record.id}-split-${idx}`}>
+                  <span style={{ color: getCategoryColorByID(split.category_id) || '#666' }}>
+                    {getCategoryNameByID(split.category_id)}
+                  </span>
+                  : ${Number(split.amount || 0).toFixed(2)}
+                </div>
+              ))}
+            </div>
             <Button
               type="text"
               size="small"

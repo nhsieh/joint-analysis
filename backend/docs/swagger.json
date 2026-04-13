@@ -846,76 +846,9 @@
                 }
             }
         },
-        "/api/transactions/{id}/category": {
-            "put": {
-                "description": "Update the category assignment for a specific transaction",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "transactions"
-                ],
-                "summary": "Update transaction category",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Transaction ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Category assignment data",
-                        "name": "category",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "category_id": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Updated transaction with new category",
-                        "schema": {
-                            "$ref": "#/definitions/main.Transaction"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "Transaction not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
         "/api/transactions/{id}/splits": {
             "get": {
-                "description": "Retrieve split rows for a transaction. Returns a default single split derived from transaction category/amount when no explicit splits are stored.",
+                "description": "Retrieve split rows for a transaction.",
                 "produces": [
                     "application/json"
                 ],
@@ -966,7 +899,7 @@
                 }
             },
             "put": {
-                "description": "Replace all split rows for a transaction and sync transaction category to the first split for backward compatibility.",
+                "description": "Replace all split rows for a transaction.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1233,9 +1166,6 @@
                 "card_number": {
                     "type": "string"
                 },
-                "category_id": {
-                    "type": "string"
-                },
                 "created_at": {
                     "type": "string"
                 },
@@ -1253,6 +1183,12 @@
                 },
                 "posted_date": {
                     "type": "string"
+                },
+                "splits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.TransactionSplit"
+                    }
                 },
                 "transaction_date": {
                     "type": "string"

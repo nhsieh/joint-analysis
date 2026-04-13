@@ -146,10 +146,7 @@ const Trends: React.FC = () => {
                 categoryId: split.category_id,
                 amount: txSign * Number(split.amount || 0),
               }))
-            : [{
-                categoryId: transaction.category_id,
-                amount: Number(transaction.amount || 0),
-              }];
+            : [];
 
           for (const allocation of allocations) {
             const { name: categoryName, topLevelName } = resolveCategory(allocation.categoryId);

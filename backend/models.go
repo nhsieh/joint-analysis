@@ -13,7 +13,6 @@ type Transaction struct {
 	TransactionDate *string            `json:"transaction_date"`
 	PostedDate      *string            `json:"posted_date"`
 	CardNumber      *string            `json:"card_number"`
-	CategoryID      *string            `json:"category_id"`
 	Splits          []TransactionSplit `json:"splits,omitempty"`
 	CreatedAt       time.Time          `json:"created_at"`
 	UpdatedAt       time.Time          `json:"updated_at"`

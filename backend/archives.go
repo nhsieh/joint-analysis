@@ -246,7 +246,7 @@ func getArchiveTransactions(c *gin.Context) {
 	for _, t := range dbTransactions {
 		transaction := convertTransactionFromArchivedRow(t)
 
-		splits, err := loadTransactionSplits(t.ID, t.Amount, t.CategoryID)
+		splits, err := loadTransactionSplits(t.ID)
 		if err != nil {
 			log.Printf("Error loading splits for archived transaction %s: %v", transaction.ID, err)
 		} else {

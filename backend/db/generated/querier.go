@@ -67,7 +67,6 @@ type Querier interface {
 	UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Person, error)
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (CategorizationRule, error)
 	UpdateTransactionAssignment(ctx context.Context, arg UpdateTransactionAssignmentParams) (UpdateTransactionAssignmentRow, error)
-	UpdateTransactionCategory(ctx context.Context, arg UpdateTransactionCategoryParams) (UpdateTransactionCategoryRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

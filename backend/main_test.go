@@ -142,7 +142,6 @@ func setupTestRouter() {
 	testRouter.POST("/api/categories", createCategory)
 	testRouter.PUT("/api/categories/:id", updateCategory)
 	testRouter.DELETE("/api/categories/:id", deleteCategory)
-	testRouter.PUT("/api/transactions/:id/category", updateTransactionCategory)
 	testRouter.GET("/api/totals", getTotals)
 	testRouter.POST("/api/archives", createArchive)
 	testRouter.GET("/api/archives", getArchives)

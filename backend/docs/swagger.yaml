@@ -101,8 +101,6 @@ definitions:
         type: array
       card_number:
         type: string
-      category_id:
-        type: string
       created_at:
         type: string
       date_uploaded:
@@ -115,6 +113,10 @@ definitions:
         type: string
       posted_date:
         type: string
+      splits:
+        items:
+          $ref: '#/definitions/main.TransactionSplit'
+        type: array
       transaction_date:
         type: string
       updated_at:
@@ -728,56 +730,9 @@ paths:
       summary: Assign transaction to person
       tags:
       - transactions
-  /api/transactions/{id}/category:
-    put:
-      consumes:
-      - application/json
-      description: Update the category assignment for a specific transaction
-      parameters:
-      - description: Transaction ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Category assignment data
-        in: body
-        name: category
-        required: true
-        schema:
-          properties:
-            category_id:
-              type: string
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Updated transaction with new category
-          schema:
-            $ref: '#/definitions/main.Transaction'
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: Transaction not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Update transaction category
-      tags:
-      - transactions
   /api/transactions/{id}/splits:
     get:
-      description: Retrieve split rows for a transaction. Returns a default single
-        split derived from transaction category/amount when no explicit splits are
-        stored.
+      description: Retrieve split rows for a transaction.
       parameters:
       - description: Transaction ID
         in: path
@@ -814,8 +769,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: Replace all split rows for a transaction and sync transaction category
-        to the first split for backward compatibility.
+      description: Replace all split rows for a transaction.
       parameters:
       - description: Transaction ID
         in: path
