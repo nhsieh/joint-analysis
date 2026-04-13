@@ -396,6 +396,31 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const updateSingleSplitCategory = async (transaction: Transaction, categoryId: string) => {
+    if (!categoryId) return;
+
+    const existing = (transaction.splits || [])[0];
+    const fallbackAmount = Math.abs(transaction.amount || 0);
+    const amount = Number(existing?.amount || fallbackAmount);
+
+    try {
+      await axios.put(`${API_URL}/api/transactions/${transaction.id}/splits`, {
+        splits: [
+          {
+            amount: Number(amount.toFixed(2)),
+            category_id: categoryId,
+            notes: existing?.notes || undefined,
+          },
+        ],
+      });
+
+      await fetchTransactions();
+    } catch (error) {
+      console.error('Error updating transaction category:', error);
+      message.error('Error updating transaction category');
+    }
+  };
+
   const uploadProps: UploadProps = {
     name: 'file',
     accept: '.csv',
@@ -490,10 +515,61 @@ const Dashboard: React.FC = () => {
       dataIndex: 'splits',
       key: 'category_id',
       render: (_: TransactionSplit[] | undefined, record: Transaction) => {
+        const splitRows = record.splits || [];
+        const isSplitTransaction = splitRows.length > 1;
+
+        if (!isSplitTransaction) {
+          const selectedCategoryId = splitRows[0]?.category_id;
+
+          return (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%' }}>
+              <Select
+                style={{ flex: 1, minWidth: 0, fontSize: 12 }}
+                dropdownStyle={{ fontSize: 12 }}
+                placeholder="Select category"
+                value={selectedCategoryId || undefined}
+                onChange={(value) => updateSingleSplitCategory(record, value)}
+                showSearch
+                optionFilterProp="label"
+              >
+                {categories.map((category) => {
+                  const subs = category.subcategories || [];
+                  if (subs.length > 0) {
+                    return [
+                      <Option key={category.id} value={category.id} label={category.name}>
+                        <span style={{ color: category.color, fontWeight: 600, fontSize: 12 }}>{category.name}</span>
+                      </Option>,
+                      ...subs.map((sub) => (
+                        <Option key={sub.id} value={sub.id} label={`${category.name} / ${sub.name}`}>
+                          <span style={{ color: category.color, paddingLeft: 8, fontSize: 12 }}>↳ {sub.name}</span>
+                        </Option>
+                      )),
+                    ];
+                  }
+                  return (
+                    <Option key={category.id} value={category.id} label={category.name}>
+                      <span style={{ color: category.color, fontSize: 12 }}>
+                        {category.name}
+                      </span>
+                    </Option>
+                  );
+                })}
+              </Select>
+              <Button
+                type="text"
+                size="small"
+                icon={<SwapOutlined />}
+                onClick={() => openSplitModal(record)}
+                title="Edit splits"
+              />
+            </div>
+          );
+        }
+
         return (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%' }}>
             <div style={{ fontSize: 11, color: '#666', flex: 1, minWidth: 0 }}>
-              {(record.splits || []).map((split, idx) => (
+              {splitRows.map((split, idx) => (
                 <div key={`${record.id}-split-${idx}`}>
                   <span style={{ color: getCategoryColorByID(split.category_id) || '#666' }}>
                     {getCategoryNameByID(split.category_id)}

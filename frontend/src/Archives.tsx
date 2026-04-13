@@ -250,7 +250,8 @@ const Archives: React.FC = () => {
 
               return (
                 <div key={`${record.id}-split-${idx}`}>
-                  <span style={{ color: splitColor || '#666' }}>{splitText}</span>: ${Number(split.amount || 0).toFixed(2)}
+                  <span style={{ color: splitColor || '#666' }}>{splitText}</span>
+                  {splitRows.length > 1 && `: $${Number(split.amount || 0).toFixed(2)}`}
                 </div>
               );
             })}
@@ -263,28 +264,7 @@ const Archives: React.FC = () => {
       title: 'Amount',
       dataIndex: 'amount',
       key: 'amount',
-      render: (amount: number, record: Transaction) => {
-        const splitRows = record.splits || [];
-
-        if (splitRows.length > 1) {
-          const sign = amount < 0 ? -1 : 1;
-
-          return (
-            <div>
-              <div>${amount.toFixed(2)}</div>
-              <div style={{ fontSize: 11, color: '#666' }}>
-                {splitRows.map((split, idx) => (
-                  <div key={`${record.id}-split-amount-${idx}`}>
-                    ${Number((sign * Number(split.amount || 0)).toFixed(2)).toFixed(2)}
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        }
-
-        return `$${amount.toFixed(2)}`;
-      },
+      render: (amount: number) => `$${amount.toFixed(2)}`,
       align: 'right',
       width: 100,
     },
