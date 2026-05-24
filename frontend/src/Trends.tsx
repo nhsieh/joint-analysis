@@ -421,7 +421,12 @@ const Trends: React.FC = () => {
                   const drillData = drillDownCategoryName
                     ? getPieDataByPerson(drillDownCategoryName).find(p => p.person === person)?.data || []
                     : data;
-                  const personTotal = drillData.reduce((sum, d) => sum + d.value, 0);
+                  // Pie charts cannot represent negative angles reliably.
+                  // Keep signed totals for display, but only positive values in the pie.
+                  const positiveData = drillData.filter(d => d.value > 0);
+                  const negativeData = drillData.filter(d => d.value < 0);
+                  const netTotal = drillData.reduce((sum, d) => sum + d.value, 0);
+                  const positiveTotal = positiveData.reduce((sum, d) => sum + d.value, 0);
 
                   // Build color map for drill-down
                   const getDrillColor = (itemType: string, index: number): string => {
@@ -455,7 +460,7 @@ const Trends: React.FC = () => {
                               )}
                             </div>
                             <span style={{ fontWeight: 'normal', color: '#666' }}>
-                              ${personTotal.toFixed(2)}
+                              ${netTotal.toFixed(2)}
                             </span>
                           </div>
                         }
@@ -468,26 +473,32 @@ const Trends: React.FC = () => {
                           justifyContent: 'center',
                           alignItems: 'center',
                         }}>
-                          <Pie
-                            key={`${person}-${selectedArchive}-${drillDownCategoryName || 'top'}`}
-                            data={drillData.map((d, i) => ({
-                              ...d,
-                              color: getDrillColor(d.type, i),
-                            }))}
-                            angleField="value"
-                            colorField="type"
-                            radius={0.75}
-                            innerRadius={0.3}
-                            scale={{
-                              color: {
-                                range: drillData.map((d, i) => getDrillColor(d.type, i)),
-                              },
-                            }}
-                            legend={false}
-                            interactions={[
-                              { type: 'element-highlight' },
-                            ]}
-                          />
+                          {positiveData.length > 0 ? (
+                            <Pie
+                              key={`${person}-${selectedArchive}-${drillDownCategoryName || 'top'}`}
+                              data={positiveData.map((d, i) => ({
+                                ...d,
+                                color: getDrillColor(d.type, i),
+                              }))}
+                              angleField="value"
+                              colorField="type"
+                              radius={0.75}
+                              innerRadius={0.3}
+                              scale={{
+                                color: {
+                                  range: positiveData.map((d, i) => getDrillColor(d.type, i)),
+                                },
+                              }}
+                              legend={false}
+                              interactions={[
+                                { type: 'element-highlight' },
+                              ]}
+                            />
+                          ) : (
+                            <span style={{ color: '#999', fontSize: 12 }}>
+                              No positive spending to chart
+                            </span>
+                          )}
                         </div>
 
                         {/* Custom Legend */}
@@ -498,8 +509,7 @@ const Trends: React.FC = () => {
                           padding: '16px'
                         }}>
                           {(() => {
-                            const total = drillData.reduce((sum, d) => sum + d.value, 0);
-                            return drillData.map((item, index) => {
+                            return positiveData.map((item, index) => {
                               const topCat = !drillDownCategoryName
                                 ? categories.find(c => c.name === item.type)
                                 : null;
@@ -537,7 +547,7 @@ const Trends: React.FC = () => {
                                   <div style={{ fontSize: '12px', lineHeight: '1.2', flex: 1 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                       <span style={{ fontWeight: 500, color: isDrillable ? '#1890ff' : '#333', textDecoration: isDrillable ? 'underline' : 'none' }}>
-                                        {item.type} ({((item.value / total) * 100).toFixed(1)}%)
+                                        {item.type} ({positiveTotal > 0 ? ((item.value / positiveTotal) * 100).toFixed(1) : '0.0'}%)
                                       </span>
                                       <span style={{ color: '#666', fontSize: '11px' }}>
                                         ${item.value.toFixed(2)}
@@ -548,6 +558,50 @@ const Trends: React.FC = () => {
                               );
                             });
                           })()}
+
+                          {negativeData.length > 0 && (
+                            <>
+                              <div style={{ fontSize: '11px', color: '#999', marginTop: 6 }}>
+                                excluded from pie
+                              </div>
+                              {negativeData
+                                .sort((a, b) => a.value - b.value)
+                                .map((item, index) => (
+                                  <div
+                                    key={`negative-${index}`}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'flex-start',
+                                      gap: '8px',
+                                      borderRadius: 4,
+                                      padding: '2px 4px',
+                                      margin: '-2px -4px',
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        width: '12px',
+                                        height: '12px',
+                                        borderRadius: '50%',
+                                        backgroundColor: '#a8071a',
+                                        marginTop: '2px',
+                                        flexShrink: 0
+                                      }}
+                                    />
+                                    <div style={{ fontSize: '12px', lineHeight: '1.2', flex: 1 }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontWeight: 500, color: '#333' }}>
+                                          {item.type}
+                                        </span>
+                                        <span style={{ color: '#a8071a', fontSize: '11px' }}>
+                                          ${item.value.toFixed(2)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                            </>
+                          )}
                         </div>
                       </div>
                     </Card>
