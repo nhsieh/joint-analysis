@@ -432,6 +432,8 @@ const Dashboard: React.FC = () => {
   // Filter transactions based on assigned filter
   const filteredTransactions = assignedFilter === 'all'
     ? transactions
+    : assignedFilter === '__unassigned__'
+      ? transactions.filter(transaction => (transaction.assigned_to || []).length === 0)
     : transactions.filter(transaction =>
         (transaction.assigned_to || []).includes(assignedFilter)
       );
@@ -926,6 +928,7 @@ const Dashboard: React.FC = () => {
                   }}
                 >
                   <Option value="all">All Transactions</Option>
+                  <Option value="__unassigned__">Unassigned</Option>
                   {people.map((person) => (
                     <Option key={person.id} value={person.name}>
                       {person.name}
